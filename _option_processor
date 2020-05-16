@@ -1,0 +1,99 @@
+#
+# Source this in to get an automatic option processor
+# including long options
+#
+# Author: Hans Vervaart
+#
+
+#
+# This variable is used in the help and the number of words before the
+# ' [' or ' .' is counted to be the number of minimum arguments to be
+# passed as an argument
+#
+# 1 argument:
+# _help_show_args="arg1"
+# _help_show_args="arg1 .."
+# _help_show_args="arg1 [arg2]"
+# _help_show_args="arg1 [arg2] .."
+#
+# 2 arguments:
+# _help_show_args="arg1 arg2 [arg3] .."
+# _help_show_args="arg1 arg2 .."
+#
+
+# Automatic --option-processor to var __option_processor=yes
+#  and      _o                 to var _o=yes
+# Only lowercase and numbers starting with --
+#    and lowercase, uppercase and numbers staring with -
+# if __option_processor_ARG is defined as an empty string like:
+# __option_processor_ARG=""
+#  and
+# _o_ARG=""
+# The passed argument will be put into the __option_processor_ARG or
+# _o_ARG variable.
+#
+while echo $1 | grep '^[-][-][a-z0-9-][a-z0-9-]*$'  > /dev/null 2>&1 || \
+      echo $1 | grep '^[-][a-zA-Z0-9][a-zA-Z0-9]*$' > /dev/null 2>&1
+do
+   if echo $1 | grep '^[-][-]' > /dev/null 2>&1
+   then
+      # --long-style-options
+      __Opts=`echo "$1" | sed -e 's,-*$,,g' -e 's,-,_,g'`
+   else
+      # -s -h -ort -Style (short style options)
+      __Opts=`echo "$1" | sed -e 's,^-,,' -e 's,\(.\),_\1 ,g'`
+   fi
+   shift
+   for __Opt in $__Opts
+   do
+      if eval echo "\$$__Opt" | grep '^$' > /dev/null 2>&1
+      then
+         unset ${__Opt}_ARG
+      fi
+      if [ $# -gt 0 ] && \
+         cat $0 | tr '$' '\n' | sed 's/$/#/' | \
+         egrep "^[{]{0,1}${__Opt}_ARG[^A-Za-z_]" > /dev/null 2>&1
+      then
+         eval ${__Opt}_ARG[$\{#${__Opt}_ARG[@]\}]=\"$1\"
+         shift
+      fi
+      eval $__Opt='yes'
+   done
+done
+
+unset __Opts __Opt
+
+if [ "$__help" = "yes" ] || [ "$_h" = "yes" ] || \
+   [ $# -lt `echo "$_help_show_args" | sed -e 's/[.[][^][]*[].]//g' \
+                                           -e 's/[[][^][]*[]]//g' | wc -w` ]
+then
+   if cat $0 | tr '$' '\n' | \
+      egrep '^[{]{0,1}_[a-z]|^[{]{0,1}__[a-z]' > /dev/null 2>&1
+   then
+      _help_show_options="[options] "
+   else
+      unset _help_show_options
+   fi
+   echo
+   echo "   Usage: `basename $0` ${_help_show_options}${_help_show_args}"
+   echo
+   if [ "$_help_show_options" != "" ]
+   then
+      _ArgFilter=`( cat $0 | tr '$' '\n' | \
+                    egrep '^[{]{0,1}_{1,2}[a-z0-9-][a-z0-9-]*' | \
+                    sed -e 's/^{//' -e 's/_ARG[^A-Za-z_].*/_ARG/' | \
+                    grep '_ARG$' | sed 's/_ARG$//' | sort | uniq | \
+                    tr '\n' '|' ; echo ) | \
+                  sed -e 's/|$//' -e 's/^/^/' -e 's/$/\$/' -e 's/|/\$|^/g'`
+      echo "   Options:"
+      echo
+      cat $0 | tr '$' '\n' | egrep -v '^[{]{0,1}___' | egrep \
+        '^[{]{0,1}__[a-z0-9_][a-z0-9_]*|^[{]{0,1}_[a-zA-Z0-9][^a-zA-Z0-9]' | \
+      sed -e 's/^{//' -e 's/^\(_[a-zA-Z0-9_]*\).*/\1/g' | \
+      egrep -v "$_ArgFilter" | sed -e 's/_/-/g' | sort | uniq | \
+      sed -e 's/^/      /' -e 's/[-]ARG$/#<value>/' | tr '#' '\t' | expand -t 35
+      echo
+   fi
+   exit 0
+fi
+

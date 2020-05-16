@@ -1,0 +1,532 @@
+#!/bin/bash
+#
+# vim:tabstop=3:expandtab:shiftwidth=3
+#
+###############################################################################
+#
+#  Helper script to run command(s) over multiple hosts
+#
+# o Multiple hosts 
+# o Adhoc command(s) input
+# o Adhoc command(s) as argument (behind the - argument)
+# o Single password entry (ssh_askpass)
+# o Parallel sessions, 1 file / host (--bg-log-dir)
+# o No script transfer, the command(s) are run through ssh
+# o Commands from (multiple) 'inline' files converted to adhoc commands
+#   o 'inline' files 'look and feel' like little scripts (after -- argument)
+#   o Output per 'inline' file tagged (--tags)
+#   o Exit status per 'inline' (--exit-status)
+# o Arguments for the 'inlines' can be passed after the --- 
+#   These will be available as $1 $2 etc. Beware that they will be equal in
+#   every inline file. For specific insource vars, use the next method:
+#
+# -> additional vars can be passed to 'inline' files, by exporting:
+#      export <InLineFileName>_var=value
+#    will be available as $var in the inline
+#
+# An insource file can be setup to control the defaults. A search will be done
+# in $HOME, the dir where the script resides and /etc. When a file is found,
+# only that will be insourced and the search will be stopped.
+#
+# By adding the hidden option ---no-insource, or setting
+#   export ___no_insource="yes"
+# The insource will be skipped, so that a controlling script can setup the
+# required controls, without the .ssh-batch to be in the way.
+#
+# The hidden option + arg ---info-sep <seperators>
+#   export ___info_sep_ARG=':_'
+# Enables the facility to add info about the hostname to the hostname. Handy to
+# add environment information. (for example lin1234:DEV). The first char will
+# also be used to check for a second field, where the ip address can be placed
+# when a system is not in DNS (for example lin1234:DEV_PHP:192.168.1.2). 
+# Background log files will come back as lin1234_DEV_PHP
+# The next char(s) in the ___info_sep_ARG will be used for alternative
+# info seperator using ':_' will lin1234_DEV_PHP works like lin1234:DEV_PHP
+#
+# When a hostname includes a '/' character, the script assumes that a filename
+# is passed instead of a hostname.  Files with hostnames can hold comment
+# characters. A # is a 'hard' comment, other punctuation marks like
+# a % or a - are considered to be a 'soft' comment. The --all-hosts option
+# enables the hostnames with a 'soft' comment. The hostnames in a file
+# have to be at the start of the line. Filenames can also be placed in
+# the file. Be careful it is recursive read!! The '/' character need to be in
+# the name to distinct a filename from a hostname (like on the command line).
+# Only hostnames can be 'soft' commented.
+#
+#
+# The hidden option + arg ---check-hostname <script>, or setting
+#   export ___check_hostname="<script>"
+# enables a command/script to check the hostname.
+#  $1=requested hostname
+#  $2=user name
+#  $3=host info (if enabled)
+#  $4=ip address (if host info is enabled and the third field is added)
+# The script should output the corrected hostname.
+#
+# All options can be controlled from the .ssh-batch insource file, by
+# converting them to variables, where the - need to be replaced by _
+# Switches can be switched to on by putting a 'yes' (lower case!) in.
+# Arguments can be placed by adding _ARG and putting the value in.
+# Options with arguments will be processed as array if multiple inputs
+# are provided, for example:
+#
+#  --ssh-option NumberOfPasswordPrompts=1 --ssh-option StrictHostKeyChecking=no
+#
+# will be 
+#
+#  __ssh_option_ARG=("NumberOfPasswordPrompts=1" "StrictHostKeyChecking=no")
+#
+#
+# Available hidden options:
+#
+#  ---debug
+#  ---dry-run (or) ---no-run
+#
+# Can be helpful when the command translation runs into an error.
+#
+# Author:   Hans Vervaart
+# Requires: _option_processor
+# Requires: ssh_askpass
+#
+###############################################################################
+
+#
+# By creating a $HOME/.ssh-batch with variables, these settings can be
+# controlled and functionality can be enabled.
+#
+# By adding this variable, extra information about the host can be added
+# and will be added to the output logfile
+#___info_sep_ARG=':_'
+
+# The script which can be used to check the hostname for 'correction' like
+# adding a domain name.
+#___check_hostname_ARG=check_hostname
+
+# Defaults for options
+__bg_timout_ARG="10"
+__ssh_option_ARG=("NumberOfPasswordPrompts=1" "StrictHostKeyChecking=no")
+_help_show_args="hosts [[- adhoc-cmds]|[-- inline-files]][--- args]"
+
+# Add the RunDir if not in the PATH, to be sure we will find the required
+# tools
+RunDir=$(cd $(dirname $0) 2> /dev/null;pwd)
+if [ "$RunDir" != "" ] &&  \
+   ! echo $PATH | tr ':' '\n' | grep "^$RunDir\$" > /dev/null 2>&1
+then
+   if [ "$PATH" = "" ]
+   then
+      PATH="$RunDir"
+   else
+      PATH="$RunDir:$PATH"
+   fi
+   export PATH
+fi
+
+# Check is everything is on it's place
+for Tool in _option_processor ssh_askpass
+do
+   if ! which $Tool 2>&1 | grep '^/' > /dev/null 2>&1
+   then
+      echo "! [ERROR] $Tool not found, unable to run"
+      exit 1
+   fi
+done
+
+# Run the _option_processor from the PATH
+$(which _option_processor 2>&1 | grep -v ' no ' | sed 's,^/,. /,')
+
+InLine2Command()
+{
+   if [ "$1" = "" ]
+   then
+      if [ "$__no_info" != "yes" ] && tty -s
+      then
+         echo "# [INFO] Enter commands and close the input with ^D" >&2
+      fi
+      Files=/dev/stdin
+   else
+      Files="$*"
+   fi
+
+   MissingInLines=0
+
+   for File in $Files
+   do
+      if [ "$__tags" = "yes" ]
+      then
+         InLineName="{$(basename $File)}"
+         SedTag='|sed s/^/'$InLineName'/g'
+      else
+         unset InLineName SedTag
+      fi
+      if [ -d $File ]
+      then
+         if [ "$__no_info" != "yes" ]
+         then
+            echo "# [INFO] Skipping directory $File" >&2
+         fi
+      elif [ ! -r $File ]
+      then
+         echo "! $MissingWarnErr inline-file $File not found" >&2
+         MissingInLines=$(($MissingInLines+1))
+      else
+         if [ "$__no_info" != "yes" ]
+         then
+            echo "# [INFO] Using inline file $File" >&2
+         fi
+         (
+            # Insert passed Args
+            if [ "$Args" != "" ]
+            then
+               echo "set -- $Args"
+            fi
+            # Insert exported vars
+            # Format: export <InLineName>_myvar="content"
+            set | grep "^$(basename $File)_[A-Za-z][A-Za-z]*=" | \
+            sed "s/^$(basename $File)_//"
+            # Remove comments.
+            # Beware: the ' is not allowed in a trailing comment'
+            sed -e "s/[[:space:]]#[^'\"]*$//g" \
+                -e 's/^[[:space:]]*#.*//' \
+                -e 's/^[[:space:]]*/ /' \
+                -e 's/;;/;2;/' \
+                -e 's/^ $//' \
+                $File ) | \
+         grep -v '^$' | tr '\n' ';' | \
+         sed -e 's/;*;/;/g' \
+             -e 's/;2;/;;/g' ${Sed_SshInNextScript[@]} \
+             -e 's,\\ *;,,g' \
+             -e 's,\([(]\) *;,\1,g' \
+             -e 's,( *) *; *{ *;,(){,g' \
+             -e 's,\(do\) *;,\1,g' \
+             -e 's,\(then\) *;,\1,g' \
+             -e 's,\(else\) *;,\1,g' \
+             -e 's,\(in\) *;,\1,g' \
+             -e "s/^[[:space:]]*/$ExitStatusOpen(/" \
+             -e "s,;*\$,)2>\&1${ExitStatusClose}${SedTag};,"
+      fi
+   done
+   return $MissingInLines
+}
+
+FilterHostRegExpr='^[^@./_A-Za-z0-9]'
+if [ "$__all_hosts" = "yes" ]
+then
+   FilterHostEgrep='^$'
+else
+   FilterHostEgrep='^$|'"$FilterHostRegExpr"
+fi
+
+FilterHostNames()
+{
+   local NewHostName
+
+   while [ $# -ne 0 ]
+   do
+      if echo $1 | grep '/' > /dev/null 2>&1
+      then
+         if [ -r $1 ]
+         then
+            # read the content and remove spaces from the start of the line,
+            # keep the first word and remove the space after the word
+            # including the rest of the line.
+            cd $(dirname $1) 2> /dev/null
+            sed -e 's/^[[:space:]]*//' \
+                -e 's/^\([^[:space:]]*\).*/\1/' \
+                -e 's/#.*//' $(basename $1) 2> /dev/null | \
+            egrep -v "$FilterHostEgrep" | \
+            while read NewHostName
+            do
+               FilterHostNames $NewHostName
+            done
+         fi
+      else
+         echo $1 | egrep -v "$FilterHostEgrep" | \
+         sed "s/$FilterHostRegExpr\(.*\)/\1/"  | tr '\n' ' '
+      fi
+      shift
+   done
+}
+
+CheckHostName()
+{
+   if [ "$___check_hostname_ARG" != "" ] &&
+      which $___check_hostname_ARG 2> /dev/null | grep '^/' > /dev/null 2>&1
+   then
+      $___check_hostname_ARG "$1" "$2" "$3" "$4" 2> /dev/null
+   else
+      echo $1
+   fi
+}
+
+# Get overrides in
+if [ "$___no_insource" != "yes" ]
+then
+   for InSourceDir in $HOME $(dirname $0) /etc
+   do
+      if [ -r $InSourceDir/.$(basename $0) ]
+      then
+         . $InSourceDir/.$(basename $0) > /dev/null 2>&1 
+         break
+      fi
+   done
+fi
+
+# Check the user's whises
+if [ "$___ignore_missing_inlines" = "yes" ]
+then
+   MissingWarnErr="[WARNING]"
+else
+   MissingWarnErr="[ERROR]"
+fi
+
+unset unset ExitStatusOpen ExitStatusClose
+if [ "$__exit_status" = "yes" ]
+then
+   ExitStatusOpen='('
+   ExitStatusClose=';echo EXIT_STATUS=\$?)'
+fi
+
+# Clear any content
+unset HostNames AdHocCmds InLines Args
+
+# Pull in the hostnames till the -
+while [ $# -ne 0 ] && [ "${1:0:1}" != "-" ]
+do
+   if [ "$HostNames" = "" ]
+   then
+      HostNames="$(FilterHostNames $1)"
+   else
+      HostNames="${HostNames}$(FilterHostNames $1)"
+   fi
+   shift
+done
+
+# Read the - contents into AdHocCmds
+if [ "$1" = "-" ]
+then
+   shift
+   while [ $# -ne 0 ] && [ "${1:0:2}" != "--" ]
+   do
+      if [ "$AdHocCmds" = "" ]
+      then
+         AdHocCmds="$1"
+      else
+         AdHocCmds="$AdHocCmds $1"
+      fi
+      shift
+   done
+fi
+
+# Read the -- contents into Inlines
+if [ "$1" = "--" ]
+then
+   shift
+   while [ $# -ne 0 ] && [ "${1:0:3}" != "---" ]
+   do
+      if [ "$InLines" = "" ]
+      then
+         InLines="$1"
+      else
+         InLines="$InLines $1"
+      fi
+      shift
+   done
+fi
+
+# Read the --- contents into Args
+if [ "$1" = "---" ]
+then
+   shift
+   Args="$*"
+fi
+
+if [ "$HostNames" = "" ]
+then
+   echo "! [ERROR] No system(s) provided" >&2
+   exit 1
+fi
+
+if [ "$__bg_log_dir_ARG" != "" ] && 
+   [ ! -d $__bg_log_dir_ARG ]
+then
+   echo "! [ERROR] Log dir $__bg_log_dir_ARG not available" >&2
+   exit 1
+fi
+
+# From the insource settings
+if echo $SshIsInNextScript | grep -i '^y' > /dev/null 2>&1
+then
+  Sed_SshInNextScript=('-e' 's,[$`"],\\\0,g')
+fi
+
+MissedInLines=0
+if [ "$AdHocCmds" != "" ]
+then
+   Command="$(echo $AdHocCmds | InLine2Command)"
+else
+   Command="$(InLine2Command $InLines)"
+   MissedInLines=$?
+fi
+
+if [ "$___debug" = "yes" ]
+then
+   echo "# HostNames: $HostNames"
+   echo "# AdHocCmds: $AdHocCmds"
+   echo "# InLines  : $InLines"
+   echo "# Args     : $Args"
+   echo "# Command  : $Command"
+   echo "# Log dir  : $__bg_log_dir_ARG"
+fi
+
+if [ $MissedInLines -gt 0 ]
+then
+   if [ "$___ignore_missing_inlines" = "yes" ]
+   then
+      if [ "$__no_info" != "yes" ]
+      then
+         echo "# [INFO] Ignoring missing $MissedInLines inline files" >&2
+      fi
+   else
+      exit 1
+   fi
+fi
+
+if [ "$Command" = "" ]
+then
+   if [ "$__no_info" != "yes" ]
+   then
+      echo "# [INFO] No commands found, nothing to do" >&2
+   fi
+   exit 0
+fi
+
+if [ "$___dry_run" = "yes" ] || [ "$___no_run" = "yes" ]
+then
+   exit 0
+fi
+
+# Get the ssh_askpass variables in, or not if disabled
+if [ "$__no_ssh_askpass" = "yes" ]
+then
+   unset SSH_ASKPASS_CACHE SSH_ASKPASS SETSID
+elif which ssh_askpass 2> /dev/null | grep '^/' > /dev/null 2>&1
+then
+   $(eval ssh_askpass --exports)
+fi
+
+# Collect ssh options
+unset SshOpts
+for SshOpt in ${__ssh_option_ARG[@]}
+do
+   SshOpts[${#SshOpts[@]}]='-o'
+   SshOpts[${#SshOpts[@]}]="$SshOpt"
+done
+
+# Clean start
+unset PIDs
+
+unset SedInfo
+if [ "$___info_sep_ARG" != "" ]
+then
+   if [ "${___info_sep_ARG:1}" != "" ]
+   then
+      SedInfo[${#SedInfo[@]}]='sed'
+      SedInfo[${#SedInfo[@]}]='-e'
+      SedInfo[${#SedInfo[@]}]="s/[${___info_sep_ARG:1}]/${___info_sep_ARG:0:1}/"
+   fi
+fi
+
+for Hostname in $HostNames
+do
+   # Remove additional information in the hostname
+   UserName=$(echo $Hostname | grep '@' | sed -e 's/@.*//')
+   Hostname=$(echo $Hostname | sed 's/.*@//')
+   if [ "$___info_sep_ARG" = "" ]
+   then
+      HostName=$Hostname
+      unset HostInfo
+      unset HostIpAd
+   else
+      if ! echo $Hostname | grep "${___info_sep_ARG:0:1}" > /dev/null 2>&1
+      then
+         Hostname=$(echo $Hostname | ${SedInfo[@]})
+      fi
+      HostName=$(echo $Hostname|awk -F ${___info_sep_ARG:0:1} '{print $1'})
+      HostInfo=$(echo $Hostname|awk -F ${___info_sep_ARG:0:1} '{print $2'})
+      HostIpAd=$(echo $Hostname|awk -F ${___info_sep_ARG:0:1} '{print $3'})
+   fi
+
+   # Run the hostname correction plugin
+   Host=$(CheckHostName "$HostName" "$UserName" "$HostInfo" "$HostIpAd")
+
+   # Add @ to the UserName (if not empty)
+   UserName=$(echo $UserName | sed 's/.$/\0@/')
+
+   if [ "$Host" = "" ]
+   then
+      echo "# Hostname ($Hostname) check failed, skipping host" >&2
+   else
+      if [ "$HostInfo" = "" ]
+      then
+         echo "# ssh" ${SshOpts[@]} ${UserName}${Host} >&2
+      else
+         echo "# ssh" ${SshOpts[@]} ${UserName}${Host} "($HostInfo)" >&2
+      fi
+      if [ "$__bg_log_dir" = "yes" ]
+      then
+         OutputFile="$(echo $__bg_log_dir_ARG | sed 's,/*$,,')/${HostName}"
+         if [ "$HostInfo" != "" ]
+         then
+            OutputFile="${OutputFile}_${HostInfo}"
+         fi
+         echo "# Output send to ${OutputFile}" >&2
+         if [ "$__bg_disable" = "yes" ] || [ "$SETSID" = "" ]
+         then
+            $SETSID ssh ${SshOpts[@]} ${UserName}${Host} "${Command}" \
+                        > ${OutputFile} 2>&1
+         else
+            $SETSID ssh ${SshOpts[@]} ${UserName}${Host} "${Command}" \
+                        > ${OutputFile} 2>&1 &
+            PIDs="$PIDs $!"
+         fi
+      else
+         $SETSID ssh ${SshOpts[@]} ${UserName}${Host} "${Command}"
+      fi
+   fi
+done
+
+if echo "$PIDs" | grep '[0-9]' 2>&1 > /dev/null
+then
+   echo "Background sessions running"
+   if echo $__bg_timout_ARG | grep -q '^[1-9][0-9]*$'
+   then
+      Wait=$(($__bg_timout_ARG*60))
+   else
+      Wait=213
+   fi
+   Step=1
+   ActivPs=1
+   TotalPs=$(echo "$PIDs" | wc -w)
+   Len=$(printf "%s" "$TotalPs" | wc -m)
+   while [ $Wait -gt 0 ] && [ $ActivPs -gt 0 ]
+   do
+      ActivPs=$(ps u $PIDs | grep -v '^USER' | wc -l)
+      printf "Waiting for %0*i/%0*i sessions to finish (%02i:%02i)\r" \
+             "$Len" "$ActivPs" "$Len" "$TotalPs" \
+             "$(expr $Wait / 60)" "$(expr $Wait % 60)"
+      Wait=$(expr $Wait - $Step)
+      if [ $ActivPs -gt 0 ]
+      then
+         sleep $Step
+      fi
+   done
+   echo
+   ActivePids="$(ps u $PIDs | grep -v '^USER' | awk '{print $2}' | \
+                tr '\n' ' ' | sed -e 's/^ //' -e 's/ $//')"
+   if [ "$ActivePids" != "" ]
+   then
+      echo "# [CHECK] Still active PIDs: $ActivePids"
+   fi
+fi
+
