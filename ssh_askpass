@@ -210,7 +210,13 @@ then
       unset $EnvVar
       [ $NrOfArgs -eq 1 ] && echo " unset $EnvVar"
    done
+   if [ ! -z "$DISPLAY_" ]
+   then
+      DISPLAY=$DISPLAY_
+   fi
    [ $NrOfArgs -eq 1 ] && echo
+   __vault_ignore="yes"
+
 fi
 
 unset Passw
@@ -235,6 +241,8 @@ then
 fi
 
 # Input new account passwords
+if  [ "$__flush_cache" != "yes" ]
+then
 if [ "$SSH_ASKPASS_CACHE" = "" ] || [ "$__vault_create" = "yes" ] || \
    [ "$__update_passwords" = "yes" ] || [ "$__vault_relock" = "yes" ]
 then
@@ -336,6 +344,10 @@ then
             export SSH_ASKPASS_CACHE
             SSH_ASKPASS=$(cd $(dirname $0);pwd)/$(basename $0)
             export SSH_ASKPASS
+            if [ -z "$DISPLAY_" ] && [ ! -z "$DISPLAY" ]
+            then
+	       DISPLAY_=$DISPLAY
+            fi
             [ "$DISPLAY" = "" ] && DISPLAY=localhost:0.0
             export DISPLAY
             export SETSID
@@ -382,12 +394,18 @@ then
       printf "[$(basename $0)] New vault content written\n"
    fi
 fi
+fi
+
 
 if [ "$SSH_ASKPASS_CACHE" != "" ]
 then
    export SSH_ASKPASS_CACHE
    SSH_ASKPASS=$(cd $(dirname $0);pwd)/$(basename $0)
    export SSH_ASKPASS
+   if [ -z "$DISPLAY_" ] && [ ! -z "$DISPLAY" ]
+   then
+      DISPLAY_=$DISPLAY
+   fi
    [ "$DISPLAY" = "" ] && DISPLAY=localhost:0.0
    export DISPLAY
    export SETSID
@@ -455,3 +473,14 @@ then
       fi
    fi
 fi
+
+# When __flush_cache (closing the vault), allow ^C again without the terminal closing
+if [ "$__no_trap" = "yes" ]
+then
+   trap - HUP INT QUIT TERM
+fi
+
+
+# Forget parameters 
+unset __vault_create __vault_remove __update_passwords __vault_relock 
+unset __flush_cache  __vault_ignore __exports __no_trap
