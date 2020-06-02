@@ -483,4 +483,4 @@ fi
 
 # Forget parameters 
 unset __vault_create __vault_remove __update_passwords __vault_relock 
-unset __flush_cache  __vault_ignore __exports __no_trap
+unset __flush_cache  __vault_ignore __exports __no_trap __no_set _h __help
