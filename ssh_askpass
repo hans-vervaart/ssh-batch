@@ -79,7 +79,7 @@
 #
 # A login with hv1234@<system> will be first searched in AIX, then in
 # Solaris, then with the direct regular expression hv1234@lin.* and
-# finaly the last unfiltered value will be returned.
+# finally the last unfiltered value will be returned.
 #
 # A login with hans will return the 4th password and an unknown will return
 # the last password.
