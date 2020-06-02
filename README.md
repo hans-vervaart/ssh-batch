@@ -31,8 +31,14 @@ Author  : **Hans Vervaart**
       --ssh-option                 <value>
       --tags
 
-Using the `--bg-log-dir /path/to/log/directory` option will let all sessions
-run from the background.
+Using the `--bg-log-dir /path/to/log/directory` option will let all sessions run from the background.
+
+### simple usage example
+Run the content of the `script` on all servers in the file `hosts`
+```sh
+ssh-batch ./hosts -- ./script
+```
+----
 
 ## ssh_askpass
 
@@ -49,6 +55,7 @@ Creates: A vault in `~/.ssh/`
       -h
       --help
       --no-set
+      --no-trap
       --update-passwords
       --vault-create
       --vault-ignore
@@ -143,34 +150,67 @@ Solaris=(
 ### incorporating ssh_askpass into your scripts
 You can also use ssh_askpass like so:
 ```sh
- #  #!/bin/bash
- #
- #  # This line will request your to enter your password
- #  $(ssh_askpass --exports)
- #
- #  COMMAND='ls -l'
- #  HOSTS="host1 host2 host3"
- #
- #  for HOST in $HOSTS
- #  do
- #     $SETSID ssh $HOST "$COMMAND"
- #  done
+ #!/bin/bash
+ 
+ # This line will request your to enter your password
+ $(ssh_askpass --exports)
+ 
+ COMMAND='ls -l'
+ HOSTS="host1 host2 host3"
+ 
+ for HOST in $HOSTS
+ do
+    $SETSID ssh $HOST "$COMMAND"
+ done
 ```
 For multiple user accounts, replace the line with the next line:
 ```sh
-#  $(ssh_askpass --exports username1 username2 username3)
- #
- #
- # -> disadvantage: You have to enter 3 passwords when running the script.
- #                  By setting up the vault, only the vault secret will
- #                  be requested.
+$(ssh_askpass --exports username1 username2 username3)
 ```
+Running vaultless does have a disadvantage: You have to enter 3 passwords when running the script. By setting up the vault, only the vault secret will be requested.
 
+----
 ## _option_processor
 Source this in to get an automatic option processor, including long options.
 
-### Usage
+### Usage example
+```sh
+$ ./example.sh -Q --foo-bar baz
+yes
+yes
+baz
+$ cat example.sh
+. ./_option_processor
+echo $_Q
+echo $__foo_bar
+if [ "$__foo_bar" = "yes" ];then
+  echo $__foo_bar_ARG
+fi
+```
+
+
+## long and short getopts
+
+If a option has been used, then 
+ Automatic `--option-processor` to var `__option_processor=yes`
+  and      `-o`                 to var `_o=yes`
  
+ For the long getopts (options starting with `--`), you can use
+ only lowercase and numbers.
+ For short getopts you can use lowercase, uppercase and numbers.
+ 
+ ## Parameter arguments
+ 
+ if `__option_processor_ARG` is defined as an empty string like:
+ `__option_processor_ARG=""`
+  and
+ `_o_ARG=""`
+ The passed argument will be put into the `__option_processor_ARG` or
+ `_o_ARG` variable.
+
+To see actual examples, peruse the code from `ssh-batch` and `ssh_askpass`.
+
+## displaying help
 
 This variable is used in the help and the number of words before the
 ' [' or ' .' is counted to be the number of minimum arguments to be
@@ -185,17 +225,3 @@ passed as an argument.
 #### 2 arguments
  _help_show_args="arg1 arg2 [arg3] .."
  _help_show_args="arg1 arg2 .."
-
-
- Automatic `--option-processor` to var `__option_processor=yes`
-  and      `_o`                 to var `_o=yes`
- Only lowercase and numbers starting with --
-    and lowercase, uppercase and numbers staring with -
- if `__option_processor_ARG` is defined as an empty string like:
- `__option_processor_ARG=""`
-  and
- `_o_ARG=""`
- The passed argument will be put into the `__option_processor_ARG` or
- `_o_ARG` variable.
-
-To see actual examples, peruse the code from `ssh-batch` and `ssh_askpass`.
