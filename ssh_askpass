@@ -97,6 +97,9 @@
 #
 ###############################################################################
 
+# Create .ssh dir if not avialable
+(umask 0077 && [ "$HOME" != "" ] && mkdir $HOME/.ssh) &> /dev/null
+
 # Keep files private
 umask 0177
 
