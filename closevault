@@ -1,0 +1,31 @@
+(return 0 2>/dev/null) && sourced=1 || sourced=0
+
+if [ $sourced = 1 ];then
+    CD=""
+    if [ -z "$(which ssh_askpass)" ];then
+      if [ -x "ssh_askpass" ];then
+        CD="./"
+      else
+        if [ -x ./bin/ssh_askpass ];then
+            CD="./bin/"
+        fi
+      fi
+    fi
+    if [ -x  ${CD}ssh_askpass ];then
+      . ${CD}ssh_askpass --flush-cache --no-trap $@
+    else
+      NrOfArgs=$#
+      echo "$# $NrOfArgs"
+      [ $NrOfArgs -eq 1 ] && echo
+      for EnvVar in SSH_ASKPASS_CACHE SSH_ASKPASS DISPLAY SETSID
+      do
+        unset $EnvVar
+        [ $NrOfArgs -eq 1 ] && echo " unset $EnvVar"
+      done
+      [ $NrOfArgs -eq 1 ] && echo
+    fi
+else
+    echo "This script only runs sourced, i.e.:"
+    echo ". $0"
+fi
+

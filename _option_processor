@@ -22,7 +22,7 @@
 #
 
 # Automatic --option-processor to var __option_processor=yes
-#  and      _o                 to var _o=yes
+#  and      -o                 to var _o=yes
 # Only lowercase and numbers starting with --
 #    and lowercase, uppercase and numbers staring with -
 # if __option_processor_ARG is defined as an empty string like:
