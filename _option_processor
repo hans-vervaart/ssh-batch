@@ -22,7 +22,7 @@
 #
 
 # Automatic --option-processor to var __option_processor=yes
-#  and      _o                 to var _o=yes
+#  and      -o                 to var _o=yes
 # Only lowercase and numbers starting with --
 #    and lowercase, uppercase and numbers staring with -
 # if __option_processor_ARG is defined as an empty string like:
@@ -67,8 +67,8 @@ if [ "$__help" = "yes" ] || [ "$_h" = "yes" ] || \
    [ $# -lt `echo "$_help_show_args" | sed -e 's/[.[][^][]*[].]//g' \
                                            -e 's/[[][^][]*[]]//g' | wc -w` ]
 then
-   if cat $0 | tr '$' '\n' | \
-      egrep '^[{]{0,1}_[a-z]|^[{]{0,1}__[a-z]' > /dev/null 2>&1
+   if grep -v '^_help_show_args' $0 | tr '$' '\n' | \
+      egrep '^[{]{0,1}_[a-zA-Z0-9]|^[{]{0,1}__[a-z0-9]' > /dev/null 2>&1
    then
       _help_show_options="[options] "
    else
@@ -79,17 +79,18 @@ then
    echo
    if [ "$_help_show_options" != "" ]
    then
-      _ArgFilter=`( cat $0 | tr '$' '\n' | \
-                    egrep '^[{]{0,1}_{1,2}[a-z0-9-][a-z0-9-]*' | \
+      _ArgFilter=`( grep -v '^_help_show_args' $0 | tr '$' '\n' | \
+                    egrep '^[{]{0,1}_[a-zA-Z0-9]|^[{]{0,1}__[a-z0-9]' | \
                     sed -e 's/^{//' -e 's/_ARG[^A-Za-z_].*/_ARG/' | \
                     grep '_ARG$' | sed 's/_ARG$//' | sort | uniq | \
                     tr '\n' '|' ; echo ) | \
                   sed -e 's/|$//' -e 's/^/^/' -e 's/$/\$/' -e 's/|/\$|^/g'`
       echo "   Options:"
       echo
-      cat $0 | tr '$' '\n' | egrep -v '^[{]{0,1}___' | egrep \
-        '^[{]{0,1}__[a-z0-9_][a-z0-9_]*|^[{]{0,1}_[a-zA-Z0-9][^a-zA-Z0-9]' | \
-      sed -e 's/^{//' -e 's/^\(_[a-zA-Z0-9_]*\).*/\1/g' | \
+      grep -v '^_help_show_args' $0 | tr '$' '\n' | egrep -v '^[{]{0,1}___' | \
+      sed -e 's/^{//' -e 's/$/:/' | \
+      egrep '^__[a-z0-9][a-z0-9_]*|^_[a-zA-Z0-9][^a-zA-Z0-9]' | \
+      sed -e 's/^\(_[a-zA-Z0-9_]*\).*/\1/g' | \
       egrep -v "$_ArgFilter" | sed -e 's/_/-/g' | sort | uniq | \
       sed -e 's/^/      /' -e 's/[-]ARG$/#<value>/' | tr '#' '\t' | expand -t 35
       echo
