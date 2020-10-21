@@ -122,18 +122,18 @@ then
    export PATH
 fi
 
-# Check is everything is on it's place
-for Tool in _option_processor ssh_askpass
-do
-   if ! which $Tool 2>&1 | grep '^/' > /dev/null 2>&1
-   then
-      echo "! [ERROR] $Tool not found, unable to run"
-      exit 1
-   fi
-done
+# Check if _option_processor and ssh_askpass can be found
+if [ ! -r $RunDir/_option_processor ]
+then
+   echo "! [ERROR] $RunDir/_option_processor not found, unable to run"
+elif ! which ssh_askpass 2>&1 | grep '^/' > /dev/null 2>&1
+then
+   echo "! [ERROR] ssh_askpass not found, unable to run"
+   exit 1
+fi
 
-# Run the _option_processor from the PATH
-$(which _option_processor 2>&1 | grep -v ' no ' | sed 's,^/,. /,')
+# Run the _option_processor from the $RunDir
+. $RunDir/_option_processor
 
 InLine2Command()
 {
@@ -440,7 +440,7 @@ fi
 for Hostname in $HostNames
 do
    # Remove additional information in the hostname
-   UserName=$(echo $Hostname | grep '@' | sed -e 's/@.*//')
+   UserName=$(echo $Hostname | grep '@' | sed -e 's/@[^@]*$//')
    Hostname=$(echo $Hostname | sed 's/.*@//')
    if [ "$___info_sep_ARG" = "" ]
    then
