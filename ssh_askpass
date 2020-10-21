@@ -26,7 +26,7 @@
 #  $(ssh_askpass --exports hans have verha)
 #
 #
-# -> disadvantige: You have to enter 3 passwords when running the script.
+# -> disadvantage: You have to enter 3 passwords when running the script.
 #                  By setting up the vault, only the vault secret will
 #                  be requested.
 #
@@ -79,7 +79,7 @@
 #
 # A login with hv1234@<system> will be first searched in AIX, then in
 # Solaris, then with the direct regular expression hv1234@lin.* and
-# finaly the last unfiltered value will be returned.
+# finally the last unfiltered value will be returned.
 #
 # A login with hans will return the 4th password and an unknown will return
 # the last password.
@@ -366,12 +366,12 @@ then
             export Passw PwdCh
             if [ ${#PwdCh} -eq 0 ] || \
                ! (echo "$RANDOM" | \
-                  openssl enc -des -pass env:Passw \
-                              -in /dev/stdin \
-                              -out /dev/stdout -e | \
-                  openssl enc -des -pass env:PwdCh \
-                              -in /dev/stdin \
-                              -out /dev/stdout -d ) > /dev/null 2>&1
+                  $OPEN_SSL enc -des -pass env:Passw \
+                                -in /dev/stdin \
+                                -out /dev/stdout -e | \
+                  $OPEN_SSL enc -des -pass env:PwdCh \
+                                -in /dev/stdin \
+                                -out /dev/stdout -d ) > /dev/null 2>&1
             then
                unset PwdCh Passw
             fi
@@ -450,7 +450,7 @@ then
                 sed 's/.*://' | $OPEN_SSL base64 -d)"
          if [ ${#Pwd} -eq 0 ]
          then
-            echo $* "<$(basename $0) FAILED (unkown account)>" >&2
+            echo $* "<$(basename $0) FAILED (unknown account)>" >&2
             exit 1
          fi
          echo $* "<$(basename $0)>" >&2
