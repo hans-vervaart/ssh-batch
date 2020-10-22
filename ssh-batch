@@ -126,6 +126,7 @@ fi
 if [ ! -r $RunDir/_option_processor ]
 then
    echo "! [ERROR] $RunDir/_option_processor not found, unable to run"
+   exit 1
 elif ! which ssh_askpass 2>&1 | grep '^/' > /dev/null 2>&1
 then
    echo "! [ERROR] ssh_askpass not found, unable to run"
