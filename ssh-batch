@@ -24,6 +24,13 @@
 #      export <InLineFileName>_var=value
 #    will be available as $var in the inline
 #
+# The --bg-session-throttle <value> will wait if the amount of parallel
+# sessions exceeds the <value>, it will continue when the number of
+# sessions is droped 10% of the <value>
+#
+# -> The hidden option ---bg-session-throttle-hysteresis <value>, controls
+#    the number of sessions to drop for continueation.
+#
 # An insource file can be setup to control the defaults. A search will be done
 # in $HOME, the dir where the script resides and /etc. When a file is found,
 # only that will be insourced and the search will be stopped.
@@ -104,6 +111,7 @@
 
 # Defaults for options
 __bg_timout_ARG="10"
+__bg_session_throttle_ARG="0"
 __ssh_option_ARG=("NumberOfPasswordPrompts=1" "StrictHostKeyChecking=no")
 _help_show_args="hosts [[- adhoc-cmds]|[-- inline-files]][--- args]"
 
@@ -126,6 +134,7 @@ fi
 if [ ! -r $RunDir/_option_processor ]
 then
    echo "! [ERROR] $RunDir/_option_processor not found, unable to run"
+   exit 1
 elif ! which ssh_askpass 2>&1 | grep '^/' > /dev/null 2>&1
 then
    echo "! [ERROR] ssh_askpass not found, unable to run"
@@ -259,6 +268,42 @@ CheckHostName()
    fi
 }
 
+WaitForBackGroundSessions() # $1=Message $2=NrOfPsToContinue $3=NrOfPsToWait 
+{
+   TotalPs=$(echo "$PIDs" | wc -w)
+   if [ $TotalPs -ge $3 ] && [ $3 -gt 0 ]
+   then
+      echo "$1"
+      if echo $__bg_timout_ARG | grep -q '^[1-9][0-9]*$'
+      then
+         Wait=$(($__bg_timout_ARG*60))
+      else
+         Wait=213
+      fi
+      Step=1
+      ActivPs=$(($2+1))
+      Len=$(printf "%s" "$TotalPs" | wc -m)
+      while [ $Wait -gt 0 ] && [ $ActivPs -gt $2 ]
+      do
+         ActivPs=$(ps u $PIDs | grep -v '^USER' | wc -l)
+         printf "Waiting for %0*i/%0*i sessions to finish (%02i:%02i)\r" \
+                "$Len" "$ActivPs" "$Len" "$TotalPs" \
+                "$(expr $Wait / 60)" "$(expr $Wait % 60)"
+         Wait=$(expr $Wait - $Step)
+         if [ $ActivPs -gt 0 ]
+         then
+            sleep $Step
+         fi
+      done
+      echo
+      ActivePids="$(ps u $PIDs | grep -v '^USER' | awk '{print $2}' | \
+                   tr '\n' ' ' | sed -e 's/^ //' -e 's/ $//')"
+      if [ "$ActivePids" != "" ] && [ $(echo "$ActivePids" | wc -w) -gt $3 ]
+      then
+         echo "# [CHECK] Still active PIDs: $ActivePids"
+      fi
+   fi
+}
 # Get overrides in
 if [ "$___no_insource" != "yes" ]
 then
@@ -437,6 +482,25 @@ then
    fi
 fi
 
+# Setup the backround wait levels for the number of processes
+MaxPs=$(echo $__bg_session_throttle_ARG | egrep '^[0-9]{1,}$')
+if [ "$MaxPs" = "" ] || [ $MaxPs -lt 2 ]
+then
+   MaxPs=0
+   MinPs=0
+else
+   MinPs=$(($MaxPs-$(echo $___bg_session_throttle_hysteresis_ARG | \
+                     sed 's/^$/0/' | egrep '^[0-9]{1,}$')))
+   if [ $MinPs -lt 1 ] || [ $MinPs -ge $MaxPs ]
+   then
+      MinPs=$(($MaxPs-($MaxPs/10)))
+      if [ $MinPs -lt 1 ] || [ $MinPs -eq $MaxPs ]
+      then
+         MinPs=1
+      fi
+   fi
+fi
+
 for Hostname in $HostNames
 do
    # Remove additional information in the hostname
@@ -486,6 +550,9 @@ do
             $SETSID ssh ${SshOpts[@]} ${UserName}${Host} "${Command}" \
                         > ${OutputFile} 2>&1
          else
+            WaitForBackGroundSessions \
+               "Session throttle $MaxPs reached, continueing at $MinPs" \
+               $MinPs $MaxPs
             $SETSID ssh ${SshOpts[@]} ${UserName}${Host} "${Command}" \
                         > ${OutputFile} 2>&1 &
             PIDs="$PIDs $!"
@@ -496,37 +563,6 @@ do
    fi
 done
 
-if echo "$PIDs" | grep '[0-9]' 2>&1 > /dev/null
-then
-   echo "Background sessions running"
-   if echo $__bg_timout_ARG | grep -q '^[1-9][0-9]*$'
-   then
-      Wait=$(($__bg_timout_ARG*60))
-   else
-      Wait=213
-   fi
-   Step=1
-   ActivPs=1
-   TotalPs=$(echo "$PIDs" | wc -w)
-   Len=$(printf "%s" "$TotalPs" | wc -m)
-   while [ $Wait -gt 0 ] && [ $ActivPs -gt 0 ]
-   do
-      ActivPs=$(ps u $PIDs | grep -v '^USER' | wc -l)
-      printf "Waiting for %0*i/%0*i sessions to finish (%02i:%02i)\r" \
-             "$Len" "$ActivPs" "$Len" "$TotalPs" \
-             "$(expr $Wait / 60)" "$(expr $Wait % 60)"
-      Wait=$(expr $Wait - $Step)
-      if [ $ActivPs -gt 0 ]
-      then
-         sleep $Step
-      fi
-   done
-   echo
-   ActivePids="$(ps u $PIDs | grep -v '^USER' | awk '{print $2}' | \
-                tr '\n' ' ' | sed -e 's/^ //' -e 's/ $//')"
-   if [ "$ActivePids" != "" ]
-   then
-      echo "# [CHECK] Still active PIDs: $ActivePids"
-   fi
-fi
+# Final wait
+WaitForBackGroundSessions "Background sessions running" 0 1
 
