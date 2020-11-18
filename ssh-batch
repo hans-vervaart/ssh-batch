@@ -272,7 +272,7 @@ WaitForBackGroundSessions() # $1=Message $2=NrOfPsToContinue $3=NrOfPsToWait
 {
    TotalPs=$(echo "$PIDs" | wc -w)
    ActivPs=$(ps u $PIDs | grep -v '^USER' | wc -l)
-   if [ $ActivPs -ge $3 ] && [ $3 -gt 0 ]
+   if [ $TotalPs -gt 0 ] && [ $ActivPs -ge $3 ] && [ $3 -gt 0 ]
    then
       echo "$1"
       if echo $__bg_timout_ARG | grep -q '^[1-9][0-9]*$'
@@ -552,12 +552,9 @@ do
             $SETSID ssh ${SshOpts[@]} ${UserName}${Host} "${Command}" \
                         > ${OutputFile} 2>&1
          else
-            if [ "$PIDs" != "" ]
-            then
-               WaitForBackGroundSessions \
-                  "Session throttle $MaxPs reached, continueing at $MinPs" \
-                  $MinPs $MaxPs
-            fi
+            WaitForBackGroundSessions \
+               "Session throttle $MaxPs reached, continueing at $MinPs" \
+               $MinPs $MaxPs
             $SETSID ssh ${SshOpts[@]} ${UserName}${Host} "${Command}" \
                         > ${OutputFile} 2>&1 &
             PIDs="$PIDs $!"
