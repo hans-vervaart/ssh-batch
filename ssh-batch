@@ -271,7 +271,8 @@ CheckHostName()
 WaitForBackGroundSessions() # $1=Message $2=NrOfPsToContinue $3=NrOfPsToWait 
 {
    TotalPs=$(echo "$PIDs" | wc -w)
-   if [ $TotalPs -ge $3 ] && [ $3 -gt 0 ]
+   ActivPs=$(ps u $PIDs | grep -v '^USER' | wc -l)
+   if [ $ActivPs -ge $3 ] && [ $3 -gt 0 ]
    then
       echo "$1"
       if echo $__bg_timout_ARG | grep -q '^[1-9][0-9]*$'
@@ -290,7 +291,7 @@ WaitForBackGroundSessions() # $1=Message $2=NrOfPsToContinue $3=NrOfPsToWait
                 "$Len" "$ActivPs" "$Len" "$TotalPs" \
                 "$(expr $Wait / 60)" "$(expr $Wait % 60)"
          Wait=$(expr $Wait - $Step)
-         if [ $ActivPs -gt 0 ]
+         if [ $ActivPs -gt $2 ]
          then
             sleep $Step
          fi
@@ -304,6 +305,7 @@ WaitForBackGroundSessions() # $1=Message $2=NrOfPsToContinue $3=NrOfPsToWait
       fi
    fi
 }
+
 # Get overrides in
 if [ "$___no_insource" != "yes" ]
 then
@@ -550,9 +552,12 @@ do
             $SETSID ssh ${SshOpts[@]} ${UserName}${Host} "${Command}" \
                         > ${OutputFile} 2>&1
          else
-            WaitForBackGroundSessions \
-               "Session throttle $MaxPs reached, continueing at $MinPs" \
-               $MinPs $MaxPs
+            if [ "$PIDs" != "" ]
+            then
+               WaitForBackGroundSessions \
+                  "Session throttle $MaxPs reached, continueing at $MinPs" \
+                  $MinPs $MaxPs
+            fi
             $SETSID ssh ${SshOpts[@]} ${UserName}${Host} "${Command}" \
                         > ${OutputFile} 2>&1 &
             PIDs="$PIDs $!"
