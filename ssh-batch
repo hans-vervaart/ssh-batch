@@ -533,6 +533,8 @@ do
    then
       echo "# Hostname ($Hostname) check failed, skipping host" >&2
    else
+      WaitForBackGroundSessions \
+         "Session throttle $MaxPs reached, continueing at $MinPs" $MinPs $MaxPs
       if [ "$HostInfo" = "" ]
       then
          echo "# ssh" ${SshOpts[@]} ${UserName}${Host} >&2
@@ -552,9 +554,6 @@ do
             $SETSID ssh ${SshOpts[@]} ${UserName}${Host} "${Command}" \
                         > ${OutputFile} 2>&1
          else
-            WaitForBackGroundSessions \
-               "Session throttle $MaxPs reached, continueing at $MinPs" \
-               $MinPs $MaxPs
             $SETSID ssh ${SshOpts[@]} ${UserName}${Host} "${Command}" \
                         > ${OutputFile} 2>&1 &
             PIDs="$PIDs $!"
