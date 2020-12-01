@@ -262,7 +262,7 @@ CheckHostName()
    if [ "$___check_hostname_ARG" != "" ] &&
       which $___check_hostname_ARG 2> /dev/null | grep '^/' > /dev/null 2>&1
    then
-      $___check_hostname_ARG "$1" "$2" "$3" "$4" 2> /dev/null
+      $___check_hostname_ARG "$1" "$2" "$3" "$4"
    else
       echo $1
    fi
@@ -531,7 +531,17 @@ do
 
    if [ "$Host" = "" ]
    then
-      echo "# Hostname ($Hostname) check failed, skipping host" >&2
+      if [ "$__bg_log_dir" = "yes" ]
+      then
+         OutputFile="$(echo $__bg_log_dir_ARG | sed 's,/*$,,')/${HostName}"
+         if [ "$HostInfo" != "" ]
+         then
+            OutputFile="${OutputFile}_${HostInfo}"
+         fi
+      else
+         OutputFile=/dev/null
+      fi
+      echo "# Hostname ($Hostname) check failed, skipping host" | tee $OutputFile >&2
    else
       WaitForBackGroundSessions \
          "Session throttle $MaxPs reached, continueing at $MinPs" $MinPs $MaxPs
