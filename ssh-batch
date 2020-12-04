@@ -144,6 +144,11 @@ fi
 # Run the _option_processor from the $RunDir
 . $RunDir/_option_processor
 
+if [ "$__quiet" = "yes" ]
+then
+   __no_info="yes"
+fi
+
 InLine2Command()
 {
    if [ "$1" = "" ]
@@ -541,15 +546,25 @@ do
       else
          OutputFile=/dev/null
       fi
-      echo "# Hostname ($Hostname) check failed, skipping host" | tee $OutputFile >&2
+      if [ "$__quiet" = "yes" ]
+      then
+         # Log the failure
+         echo "# Hostname ($Hostname) check failed, skipping host" > $OutputFile
+      else
+         echo "# Hostname ($Hostname) check failed, skipping host" | tee $OutputFile >&2
+      fi
    else
       WaitForBackGroundSessions \
          "Session throttle $MaxPs reached, continueing at $MinPs" $MinPs $MaxPs
-      if [ "$HostInfo" = "" ]
+      # Quiet mode?
+      if [ "$__quiet" != "yes" ]
       then
-         echo "# ssh" ${SshOpts[@]} ${UserName}${Host} >&2
-      else
-         echo "# ssh" ${SshOpts[@]} ${UserName}${Host} "($HostInfo)" >&2
+         if [ "$HostInfo" = "" ]
+         then
+            echo "# ssh" ${SshOpts[@]} ${UserName}${Host} >&2
+         else
+            echo "# ssh" ${SshOpts[@]} ${UserName}${Host} "($HostInfo)" >&2
+         fi
       fi
       if [ "$__bg_log_dir" = "yes" ]
       then
@@ -558,7 +573,10 @@ do
          then
             OutputFile="${OutputFile}_${HostInfo}"
          fi
-         echo "# Output send to ${OutputFile}" >&2
+         if [ "$__quiet" != "yes" ]
+         then
+            echo "# Output send to ${OutputFile}" >&2
+         fi
          if [ "$__bg_disable" = "yes" ] || [ "$SETSID" = "" ]
          then
             $SETSID ssh ${SshOpts[@]} ${UserName}${Host} "${Command}" \
@@ -569,7 +587,13 @@ do
             PIDs="$PIDs $!"
          fi
       else
-         $SETSID ssh ${SshOpts[@]} ${UserName}${Host} "${Command}"
+         if [ "$__hostnames" = "yes" ]
+         then
+            $SETSID ssh ${SshOpts[@]} ${UserName}${Host} "${Command}" | \
+               sed "s/^/${Host}:/"
+         else
+            $SETSID ssh ${SshOpts[@]} ${UserName}${Host} "${Command}"
+         fi
       fi
    fi
 done
