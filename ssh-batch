@@ -590,7 +590,7 @@ do
          if [ "$__hostnames" = "yes" ]
          then
             $SETSID ssh ${SshOpts[@]} ${UserName}${Host} "${Command}" | \
-               sed "s/^/${Host}:/"
+               sed "s/^/${HostName}:/"
          else
             $SETSID ssh ${SshOpts[@]} ${UserName}${Host} "${Command}"
          fi
