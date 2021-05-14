@@ -60,6 +60,8 @@
 # the name to distinct a filename from a hostname (like on the command line).
 # Only hostnames can be 'soft' commented.
 #
+# When a hostname includes a '^' character, the script assumes that the
+# hostname includes a jump-host (jumphost^targethost).
 #
 # The hidden option + arg ---check-hostname <script>, or setting
 #   export ___check_hostname="<script>"
@@ -510,6 +512,24 @@ fi
 
 for Hostname in $HostNames
 do
+   unset JumpOpt
+   # Check for Jumphost info (^)
+   if echo $Hostname | grep -q '\^'
+   then
+      # Multiple jumphosts are not supported in ssh 'now', but this will pass
+      # them all so that it will work if it is implemented in the future.
+      JumpOpt=($(echo $Hostname | sed 's/\^[^^]*$//' | \
+                 tr '^' '\n' | sed 's/^./-J \0/'))
+      if [ "$__no_info" != "yes" ]
+      then
+         echo "${JumpOpt[@]}" | sed -e 's/^/# [INFO] Jump-host:/' \
+                                    -e 's/-J//g' >&2
+      fi
+
+      # Correct the Hostname
+      Hostname=$(echo $Hostname | awk -F^ '{print $NF}')
+   fi
+
    # Remove additional information in the hostname
    UserName=$(echo $Hostname | grep '@' | sed -e 's/@[^@]*$//')
    Hostname=$(echo $Hostname | sed 's/.*@//')
@@ -549,9 +569,11 @@ do
       if [ "$__quiet" = "yes" ]
       then
          # Log the failure
-         echo "# Hostname ($Hostname) check failed, skipping host" > $OutputFile
+         echo "# Hostname ($Hostname) check failed, skipping host" \
+              > $OutputFile
       else
-         echo "# Hostname ($Hostname) check failed, skipping host" | tee $OutputFile >&2
+         echo "# Hostname ($Hostname) check failed, skipping host" \
+              | tee $OutputFile >&2
       fi
    else
       WaitForBackGroundSessions \
@@ -561,9 +583,10 @@ do
       then
          if [ "$HostInfo" = "" ]
          then
-            echo "# ssh" ${SshOpts[@]} ${UserName}${Host} >&2
+            echo "# ssh" ${SshOpts[@]} ${JumpOpt[@]} ${UserName}${Host} >&2
          else
-            echo "# ssh" ${SshOpts[@]} ${UserName}${Host} "($HostInfo)" >&2
+            echo "# ssh" ${SshOpts[@]} ${JumpOpt[@]} ${UserName}${Host} \
+                 "($HostInfo)" >&2
          fi
       fi
       if [ "$__bg_log_dir" = "yes" ]
@@ -579,20 +602,21 @@ do
          fi
          if [ "$__bg_disable" = "yes" ] || [ "$SETSID" = "" ]
          then
-            $SETSID ssh ${SshOpts[@]} ${UserName}${Host} "${Command}" \
-                        > ${OutputFile} 2>&1
+            $SETSID ssh ${SshOpts[@]} ${JumpOpt[@]} ${UserName}${Host} \ 
+                        "${Command}" > ${OutputFile} 2>&1
          else
-            $SETSID ssh ${SshOpts[@]} ${UserName}${Host} "${Command}" \
-                        > ${OutputFile} 2>&1 &
+            $SETSID ssh ${SshOpts[@]} ${JumpOpt[@]} ${UserName}${Host} \
+                        "${Command}" > ${OutputFile} 2>&1 &
             PIDs="$PIDs $!"
          fi
       else
          if [ "$__hostnames" = "yes" ]
          then
-            $SETSID ssh ${SshOpts[@]} ${UserName}${Host} "${Command}" | \
-               sed "s/^/${HostName}:/"
+            $SETSID ssh ${SshOpts[@]} ${JumpOpt[@]} ${UserName}${Host} \
+                        "${Command}" | sed "s/^/${HostName}:/"
          else
-            $SETSID ssh ${SshOpts[@]} ${UserName}${Host} "${Command}"
+            $SETSID ssh ${SshOpts[@]} ${JumpOpt[@]} ${UserName}${Host} \
+                        "${Command}"
          fi
       fi
    fi
