@@ -97,6 +97,23 @@
 # Requires: _option_processor
 # Requires: ssh_askpass
 #
+########################### extra help ########################################
+#Usage:# The hosts argument can be a single host name or multiple hostnames.
+#Usage:#
+#Usage:# Multiple hostnames are multiple arguments. Arguments with a / are 
+#Usage:# text files containing hostnames. Hostname files can be nested.
+#--all-hosts#           Enables the hostnames with a 'soft' comment (- or %).
+#--bg-disable#          Disable background runs, when --bg-log-dir is provided.
+#--bg-log-dir#          Background logs directory and enable background runs.
+#--bg-session-throttle# Maximum background runs.
+#--bg-timeout#          The wait for all background runs time-out.
+#--exit-status#         Add the EXIT_STATUS of the inline to the output.
+#--hostnames#           Add the hostname to the output.
+#--no-info#             No info messages, only ssh command and host output.
+#--no-ssh-askpass#      Disable ssh_askpass usage (when ssh-keys are used).
+#--quiet#               Only host output.
+#--ssh-option#          Options to be bassed to the ssh command.
+#--tags#                Add tags (inline names surrounded by { } in the output.
 ###############################################################################
 
 #
@@ -112,7 +129,7 @@
 #___check_hostname_ARG=check_hostname
 
 # Defaults for options
-__bg_timout_ARG="10"
+__bg_timeout_ARG="10"
 __bg_session_throttle_ARG="0"
 __ssh_option_ARG=("NumberOfPasswordPrompts=1" "StrictHostKeyChecking=no")
 _help_show_args="hosts [[- adhoc-cmds]|[-- inline-files]][--- args]"
@@ -282,9 +299,9 @@ WaitForBackGroundSessions() # $1=Message $2=NrOfPsToContinue $3=NrOfPsToWait
    if [ $TotalPs -gt 0 ] && [ $ActivPs -ge $3 ] && [ $3 -gt 0 ]
    then
       echo "$1"
-      if echo $__bg_timout_ARG | grep -q '^[1-9][0-9]*$'
+      if echo $__bg_timeout_ARG | grep -q '^[1-9][0-9]*$'
       then
-         Wait=$(($__bg_timout_ARG*60))
+         Wait=$(($__bg_timeout_ARG*60))
       else
          Wait=213
       fi
@@ -519,7 +536,7 @@ do
       # Multiple jumphosts are not supported in ssh 'now', but this will pass
       # them all so that it will work if it is implemented in the future.
       JumpOpt=($(echo $Hostname | sed 's/\^[^^]*$//' | \
-                 tr '^' '\n' | sed 's/^./-J \0/'))
+                 tr '^' ',' | sed 's/^./-J \0/'))
       if [ "$__no_info" != "yes" ]
       then
          echo "${JumpOpt[@]}" | sed -e 's/^/# [INFO] Jump-host:/' \

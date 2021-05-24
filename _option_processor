@@ -6,7 +6,11 @@
 #
 
 #
-# This variable is used in the help and the number of words before the
+# The --help and -h will show an automaticaly created help output,
+# the Usage: provides the command line. Available options are listed under
+# the Options: line.
+#
+# The next variable is used in the help and the number of words before the
 # ' [' or ' .' is counted to be the number of minimum arguments to be
 # passed as an argument
 #
@@ -31,6 +35,20 @@
 # _o_ARG=""
 # The passed argument will be put into the __option_processor_ARG or
 # _o_ARG variable.
+#
+# By adding #<marker># lines in the script, paragraphs will be added to
+# the help ouput. Examples:
+#
+#Usage:# This help text will be added in a paragraph under
+#Usage:# the 'Usage:' line.
+#
+#-o#          This will be the help paragraph of the '-o' option.
+#--option#    This is the help paragraph of the '--option' option.
+#--format#  # Will have more indent in the '--format' help paragraph.
+#--format# ## Will have even more indent in second '--format' help line.
+#
+# Only options which are in use in the script will show up in the help,
+# options which are only #<marker># defined, will be ignored.
 #
 while echo $1 | grep '^[-][-][a-z0-9-][a-z0-9-]*$'  > /dev/null 2>&1 || \
       echo $1 | grep '^[-][a-zA-Z0-9][a-zA-Z0-9]*$' > /dev/null 2>&1
@@ -67,34 +85,60 @@ if [ "$__help" = "yes" ] || [ "$_h" = "yes" ] || \
    [ $# -lt `echo "$_help_show_args" | sed -e 's/[.[][^][]*[].]//g' \
                                            -e 's/[[][^][]*[]]//g' | wc -w` ]
 then
-   if grep -v '^_help_show_args' $0 | tr '$' '\n' | \
-      egrep '^[{]{0,1}_[a-zA-Z0-9]|^[{]{0,1}__[a-z0-9]' > /dev/null 2>&1
+   if [ "$_h" != "yes" ] && tty -s
    then
-      _help_show_options="[options] "
+      More=$((which more 2> /dev/null | grep '^/' ; echo cat) | head -1)
    else
-      unset _help_show_options
+      More=cat
    fi
-   echo
-   echo "   Usage: `basename $0` ${_help_show_options}${_help_show_args}"
-   echo
-   if [ "$_help_show_options" != "" ]
-   then
-      _ArgFilter=`( grep -v '^_help_show_args' $0 | tr '$' '\n' | \
-                    egrep '^[{]{0,1}_[a-zA-Z0-9]|^[{]{0,1}__[a-z0-9]' | \
-                    sed -e 's/^{//' -e 's/_ARG[^A-Za-z_].*/_ARG/' | \
-                    grep '_ARG$' | sed 's/_ARG$//' | sort | uniq | \
-                    tr '\n' '|' ; echo ) | \
-                  sed -e 's/|$//' -e 's/^/^/' -e 's/$/\$/' -e 's/|/\$|^/g'`
-      echo "   Options:"
+   (
+      if grep -v '^_help_show_args' $0 | tr '$' '\n' | \
+         egrep '^[{]{0,1}_[a-zA-Z0-9]|^[{]{0,1}__[a-z0-9]' > /dev/null 2>&1
+      then
+         _help_show_options="[options] "
+      else
+         unset _help_show_options
+      fi
       echo
-      grep -v '^_help_show_args' $0 | tr '$' '\n' | egrep -v '^[{]{0,1}___' | \
-      sed -e 's/^{//' -e 's/$/:/' | \
-      egrep '^__[a-z0-9][a-z0-9_]*|^_[a-zA-Z0-9][^a-zA-Z0-9]' | \
-      sed -e 's/^\(_[a-zA-Z0-9_]*\).*/\1/g' | \
-      egrep -v "$_ArgFilter" | sed -e 's/_/-/g' | sort | uniq | \
-      sed -e 's/^/      /' -e 's/[-]ARG$/#<value>/' | tr '#' '\t' | expand -t 35
+      echo "   Usage: `basename $0` ${_help_show_options}${_help_show_args}"
       echo
-   fi
+      if [ "$_h" != "yes" ] && grep '^#Usage:#' $0 > /dev/null 2>&1
+      then
+         grep '^#Usage:#' $0 | expand | sed 's|#Usage:# *||' | \
+         sed 's|^|     |' | tr '#' ' '
+         echo
+      fi
+      if [ "$_help_show_options" != "" ]
+      then
+         _ArgFilter=`( grep -v '^_help_show_args' $0 | tr '$' '\n' | \
+                       egrep '^[{]{0,1}_[a-zA-Z0-9]|^[{]{0,1}__[a-z0-9]' | \
+                       sed -e 's/^{//' -e 's/_ARG[^A-Za-z_].*/_ARG/' | \
+                       grep '_ARG$' | sed 's/_ARG$//' | sort | uniq | \
+                       tr '\n' '|' ; echo ) | \
+                     sed -e 's/|$//' -e 's/^/^/' -e 's/$/\$/' -e 's/|/\$|^/g'`
+         echo "   Options:"
+         echo
+         grep -v '^_help_show_args' $0 | tr '$' '\n' | \
+         egrep -v '^[{]{0,1}___' | sed -e 's/^{//' -e 's/$/:/' | \
+         egrep '^__[a-z0-9][a-z0-9_]*|^_[a-zA-Z0-9][^a-zA-Z0-9]' | \
+         sed -e 's/^\(_[a-zA-Z0-9_]*\).*/\1/g' | \
+         egrep -v "$_ArgFilter" | sed -e 's/_/-/g' | sort | uniq | \
+         sed -e 's/[-]ARG$/#<value>/' | tr '#' '\t' | expand -t 29 | \
+         while read OptHelp
+         do
+            echo "      $OptHelp"
+            Option="$(echo $OptHelp | awk '{print $1}')"
+            if [ "$_h" != "yes" ] && grep "^#${Option}#" $0 > /dev/null 2>&1
+            then
+               echo
+               grep "^#${Option}#" $0 | expand | sed "s|^#${Option}# *||" | \
+               sed 's|^|        |' | tr '#' ' '
+               echo
+            fi
+         done
+         echo
+      fi
+   ) | $More
    exit 0
 fi
 
