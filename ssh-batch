@@ -41,14 +41,14 @@
 # required controls, without the .ssh-batch to be in the way.
 #
 # The hidden option + arg ---info-sep <seperators>
-#   export ___info_sep_ARG=':_'
+#   export ___info_sep_ARG=',_'
 # Enables the facility to add info about the hostname to the hostname. Handy to
-# add environment information. (for example lin1234:DEV). The first char will
+# add environment information. (for example lin1234,DEV). The first char will
 # also be used to check for a second field, where the ip address can be placed
-# when a system is not in DNS (for example lin1234:DEV_PHP:192.168.1.2). 
+# when a system is not in DNS (for example lin1234,DEV_PHP,192.168.1.2). 
 # Background log files will come back as lin1234_DEV_PHP
 # The next char(s) in the ___info_sep_ARG will be used for alternative
-# info seperator using ':_' will lin1234_DEV_PHP works like lin1234:DEV_PHP
+# info seperator using ',_' will lin1234_DEV_PHP works like lin1234,DEV_PHP
 #
 # When a hostname includes a '/' character, the script assumes that a filename
 # is passed instead of a hostname.  Files with hostnames can hold comment
@@ -102,6 +102,9 @@
 #Usage:#
 #Usage:# Multiple hostnames are multiple arguments. Arguments with a / are 
 #Usage:# text files containing hostnames. Hostname files can be nested.
+#Usage:# A hostname can contain a port (hostname:port), which will be passed as:
+#Usage:#
+#Usage:#   #ssh -p port hostname 
 #--all-hosts#           Enables the hostnames with a 'soft' comment (- or %).
 #--bg-disable#          Disable background runs, when --bg-log-dir is provided.
 #--bg-log-dir#          Background logs directory and enable background runs.
@@ -122,7 +125,7 @@
 #
 # By adding this variable, extra information about the host can be added
 # and will be added to the output logfile
-#___info_sep_ARG=':_'
+#___info_sep_ARG=',_'
 
 # The script which can be used to check the hostname for 'correction' like
 # adding a domain name.
@@ -529,24 +532,6 @@ fi
 
 for Hostname in $HostNames
 do
-   unset JumpOpt
-   # Check for Jumphost info (^)
-   if echo $Hostname | grep -q '\^'
-   then
-      # Multiple jumphosts are not supported in ssh 'now', but this will pass
-      # them all so that it will work if it is implemented in the future.
-      JumpOpt=($(echo $Hostname | sed 's/\^[^^]*$//' | \
-                 tr '^' ',' | sed 's/^./-J \0/'))
-      if [ "$__no_info" != "yes" ]
-      then
-         echo "${JumpOpt[@]}" | sed -e 's/^/# [INFO] Jump-host:/' \
-                                    -e 's/-J//g' >&2
-      fi
-
-      # Correct the Hostname
-      Hostname=$(echo $Hostname | awk -F^ '{print $NF}')
-   fi
-
    # Remove additional information in the hostname
    UserName=$(echo $Hostname | grep '@' | sed -e 's/@[^@]*$//')
    Hostname=$(echo $Hostname | sed 's/.*@//')
@@ -563,6 +548,33 @@ do
       HostName=$(echo $Hostname|awk -F ${___info_sep_ARG:0:1} '{print $1'})
       HostInfo=$(echo $Hostname|awk -F ${___info_sep_ARG:0:1} '{print $2'})
       HostIpAd=$(echo $Hostname|awk -F ${___info_sep_ARG:0:1} '{print $3'})
+   fi
+
+   unset HostOpts
+   # Check for Jumphost info (^). Multiple jumphosts will be comma separated
+   if echo $HostName | grep -q '\^'
+   then
+      # Multiple jumphosts are converted to a , seperated list
+      HostOpts=($(echo $HostName | sed 's/\^[^^]*$//' | \
+                  tr '^' ',' | sed 's/^./-J \0/'))
+      if [ "$__no_info" != "yes" ]
+      then
+         echo "${HostOpts[@]}" | sed -e 's/^/# [INFO] Jump-host:/' \
+                                    -e 's/-J//g' >&2
+      fi
+
+      # Correct the HostName
+      HostName=$(echo $HostName | awk -F^ '{print $NF}')
+   fi
+
+   # Check for :port
+   if echo $HostName | grep -q ':'
+   then
+      HostOpts[${#HostOpts[@]}]='-p'
+      HostOpts[${#HostOpts[@]}]=$(echo $HostName | awk -F: '{print $2}')
+
+      # Correct the HostName
+      HostName=$(echo $HostName | awk -F: '{print $1}')
    fi
 
    # Run the hostname correction plugin
@@ -600,9 +612,9 @@ do
       then
          if [ "$HostInfo" = "" ]
          then
-            echo "# ssh" ${SshOpts[@]} ${JumpOpt[@]} ${UserName}${Host} >&2
+            echo "# ssh" ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} >&2
          else
-            echo "# ssh" ${SshOpts[@]} ${JumpOpt[@]} ${UserName}${Host} \
+            echo "# ssh" ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \
                  "($HostInfo)" >&2
          fi
       fi
@@ -619,20 +631,20 @@ do
          fi
          if [ "$__bg_disable" = "yes" ] || [ "$SETSID" = "" ]
          then
-            $SETSID ssh ${SshOpts[@]} ${JumpOpt[@]} ${UserName}${Host} \ 
+            $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \ 
                         "${Command}" > ${OutputFile} 2>&1
          else
-            $SETSID ssh ${SshOpts[@]} ${JumpOpt[@]} ${UserName}${Host} \
+            $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \
                         "${Command}" > ${OutputFile} 2>&1 &
             PIDs="$PIDs $!"
          fi
       else
          if [ "$__hostnames" = "yes" ]
          then
-            $SETSID ssh ${SshOpts[@]} ${JumpOpt[@]} ${UserName}${Host} \
+            $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \
                         "${Command}" | sed "s/^/${HostName}:/"
          else
-            $SETSID ssh ${SshOpts[@]} ${JumpOpt[@]} ${UserName}${Host} \
+            $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \
                         "${Command}"
          fi
       fi
