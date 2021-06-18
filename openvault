@@ -12,7 +12,7 @@ if [ $sourced = 1 ];then
       fi
     fi
     if [ -x  ${CD}ssh_askpass ];then
-      . ${CD}ssh_askpass --exports $@
+      $(${CD}ssh_askpass --exports $@)
     else
       echo "Unable to find ssh_askpass"
     fi
