@@ -125,6 +125,7 @@ VaultFile=$HOME/.${BaseName}.vault
 CheckFile=$HOME/.${BaseName}.check
 
 OPEN_SSL=$(which openssl 2> /dev/null | grep '^/')
+OPEN_SSL_ALGORITHM="-aes-256-cbc -pbkdf2"
 SETSID=$(which setsid 2> /dev/null | grep '^/')
 [ "$SETSID" = "" ] && SETSID=$(which setpgrp 2> /dev/null | grep '^/')
 
@@ -233,7 +234,7 @@ then
       printf "%.${#Passw}d\n" '0' | tr '0' '*' >&2
       export Passw
       $(cat $VaultFile 2> /dev/null | $OPEN_SSL base64 -d | \
-      ($OPEN_SSL enc -pass env:Passw -aes-256-cbc -salt \
+      ($OPEN_SSL enc -pass env:Passw $OPEN_SSL_ALGORITHM -salt \
                     -in /dev/stdin -out /dev/stdout -d | \
       gunzip -c) 2> /dev/null) > /dev/null 2>&1
       if [ "$SSH_ASKPASS_CACHE" = "" ]
@@ -244,13 +245,16 @@ then
    done
 fi
 
+
 # Input new account passwords
 if  [ "$__flush_cache" != "yes" ]
 then
 if [ "$SSH_ASKPASS_CACHE" = "" ] || [ "$__vault_create" = "yes" ] || \
-   [ "$__update_passwords" = "yes" ] || [ "$__vault_relock" = "yes" ]
+   [ "$__update_passwords" = "yes" ] || [ "$__vault_relock" = "yes" ] || \
+   [ "$__vault_show" = "yes" ]
 then
-   if [ "$__vault_relock" != "yes" ] || [ "$__update_passwords" = "yes" ]
+   if [ "$__vault_relock" != "yes" ] || [ "$__update_passwords" = "yes" ] || \
+      [ "$__vault_show" = "yes" ]
    then
       Check='#'
       unset Accounts
@@ -288,7 +292,13 @@ then
             printf "[%s$(basename $0)] Enter password:" \
                "$(echo ${Accounts[$i]} | sed 's/.$/\0@/')" >&2
             unset UnChanged
-            read -r -s Value
+            if [ "$__vault_show" != "yes" ]
+            then
+               read -r -s Value
+            else
+               unset Value
+               __vault_ignore="yes"
+            fi
             if [ "$Value" = "" ] && [ "$SSH_ASKPASS_CACHE" != "" ]
             then
                Value="$(echo "$SSH_ASKPASS_CACHE" | tr '-' '\n' | \
@@ -392,7 +402,7 @@ then
       done
       export Passw
       EchoExports | gzip -c 2> /dev/null | \
-      $OPEN_SSL enc -pass env:Passw -aes-256-cbc -salt \
+      $OPEN_SSL enc -pass env:Passw $OPEN_SSL_ALGORITHM -salt \
                     -in /dev/stdin -out /dev/stdout -e | \
       $OPEN_SSL base64 > $VaultFile
       printf "[$(basename $0)] New vault content written\n"
