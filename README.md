@@ -225,3 +225,14 @@ passed as an argument.
 #### 2 arguments
  _help_show_args="arg1 arg2 [arg3] .."
  _help_show_args="arg1 arg2 .."
+
+----
+
+## closevault  openvault  showvault
+Helper scripts to quickly open/close/list a vault.
+
+### Usage example
+```sh
+$ . /openvault 
+[ssh_askpass] Open vault secret:**********
+```
