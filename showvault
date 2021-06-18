@@ -1,0 +1,24 @@
+(return 0 2>/dev/null) && sourced=1 || sourced=0
+
+if [ $sourced = 1 ];then
+    CD=""
+    if [ -z "$(which ssh_askpass)" ];then
+      if [ -x "ssh_askpass" ];then
+        CD="./"
+      else
+        if [ -x ./bin/ssh_askpass ];then
+            CD="./bin/"
+        fi
+      fi
+    fi
+    if [ -x  ${CD}ssh_askpass ];then
+      $(${CD}ssh_askpass --vault-show $@)
+
+    else
+      echo "Unable to find ssh_askpass"
+    fi
+else
+    echo "This script only runs sourced, i.e.:"
+    echo ". $0 [--no-trap]"
+fi
+
