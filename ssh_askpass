@@ -182,7 +182,7 @@ EchoExports()
 
    if [ "$SSH_ASKPASS_CACHE" != "" ]
    then
-      for EnvVar in SSH_ASKPASS_CACHE SSH_ASKPASS DISPLAY SETSID
+      for EnvVar in SSH_ASKPASS_CACHE SSH_ASKPASS DISPLAY DISPLAY_ SETSID
       do
          if echo $SHELL | grep '/sh$' > /dev/null 2>&1
          then
@@ -208,7 +208,7 @@ fi
 if [ "$__flush_cache" = "yes" ]
 then
    [ $NrOfArgs -eq 1 ] && echo
-   for EnvVar in SSH_ASKPASS_CACHE SSH_ASKPASS DISPLAY SETSID
+   for EnvVar in SSH_ASKPASS_CACHE SSH_ASKPASS SETSID
    do
       unset $EnvVar
       [ $NrOfArgs -eq 1 ] && echo " unset $EnvVar"
@@ -216,6 +216,7 @@ then
    if [ ! -z "$DISPLAY_" ]
    then
       DISPLAY=$DISPLAY_
+      unset DISPLAY_
    fi
    [ $NrOfArgs -eq 1 ] && echo
    __vault_ignore="yes"
@@ -349,7 +350,7 @@ then
             export SSH_ASKPASS
             if [ -z "$DISPLAY_" ] && [ ! -z "$DISPLAY" ]
             then
-	       DISPLAY_=$DISPLAY
+               DISPLAY_=$DISPLAY
             fi
             [ "$DISPLAY" = "" ] && DISPLAY=localhost:0.0
             export DISPLAY
@@ -408,6 +409,7 @@ then
    if [ -z "$DISPLAY_" ] && [ ! -z "$DISPLAY" ]
    then
       DISPLAY_=$DISPLAY
+      export DISPLAY_
    fi
    [ "$DISPLAY" = "" ] && DISPLAY=localhost:0.0
    export DISPLAY
