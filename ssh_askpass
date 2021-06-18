@@ -97,10 +97,11 @@
 #
 ###############################################################################
 
-# Create .ssh dir if not avialable
+# Create .ssh dir if not available
 (umask 0077 && [ "$HOME" != "" ] && mkdir $HOME/.ssh) &> /dev/null
 
 # Keep files private
+UMASK_=$(umask)
 umask 0177
 
 # The walk-in vars
@@ -129,7 +130,7 @@ OPEN_SSL_ALGORITHM="-aes-256-cbc -pbkdf2"
 SETSID=$(which setsid 2> /dev/null | grep '^/')
 [ "$SETSID" = "" ] && SETSID=$(which setpgrp 2> /dev/null | grep '^/')
 
-trap 'stty sane > /dev/null 2>&1 ; printf "^C\r\n" ; exit 1' HUP INT QUIT TERM
+trap 'stty sane > /dev/null 2>&1 ; printf "^C\r\n" ; umask '"$UMASK_"' ; exit 1' HUP INT QUIT TERM
 
 # Option processor normaly by insource, but the 'engine' copied in
 # Option processor start
@@ -499,3 +500,6 @@ fi
 # Forget parameters 
 unset __vault_create __vault_remove __update_passwords __vault_relock 
 unset __flush_cache  __vault_ignore __exports __no_trap __no_set _h __help
+
+# restore umask
+umask "$UMASK_"
