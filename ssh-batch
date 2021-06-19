@@ -40,7 +40,7 @@
 # The insource will be skipped, so that a controlling script can setup the
 # required controls, without the .ssh-batch to be in the way.
 #
-# The hidden option + arg ---info-sep <seperators>
+# The hidden option + arg ---info-sep <separators>
 #   export ___info_sep_ARG=',_'
 # Enables the facility to add info about the hostname to the hostname. Handy to
 # add environment information. (for example lin1234,DEV). The first char will
@@ -48,7 +48,7 @@
 # when a system is not in DNS (for example lin1234,DEV_PHP,192.168.1.2). 
 # Background log files will come back as lin1234_DEV_PHP
 # The next char(s) in the ___info_sep_ARG will be used for alternative
-# info seperator using ',_' will lin1234_DEV_PHP works like lin1234,DEV_PHP
+# info separator using ',_' will lin1234_DEV_PHP works like lin1234,DEV_PHP
 #
 # When a hostname includes a '/' character, the script assumes that a filename
 # is passed instead of a hostname.  Files with hostnames can hold comment
@@ -577,7 +577,7 @@ do
    # Check for Jumphost info (^). Multiple jumphosts will be comma separated
    if echo $HostName | grep -q '\^'
    then
-      # Multiple jumphosts are converted to a , seperated list
+      # Multiple jumphosts are converted to a , separated list
       HostOpts=($(echo $HostName | sed 's/\^[^^]*$//' | \
                   tr '^' ',' | sed 's/^./-J \0/'))
       if [ "$__no_info" != "yes" ]
