@@ -110,7 +110,9 @@
 #--bg-log-dir#          Background logs directory and enable background runs.
 #--bg-session-throttle# Maximum background runs.
 #--bg-timeout#          The wait for all background runs time-out.
+#-C#                    Requests ssh to use gzip compression for all tramsmitted data.
 #--exit-status#         Add the EXIT_STATUS of the inline to the output.
+#-F#                    Specifies an alternative per-user ssh configuration file.
 #--hostnames#           Add the hostname to the output.
 #--no-info#             No info messages, only ssh command and host output.
 #--no-ssh-askpass#      Disable ssh_askpass usage (when ssh-keys are used).
@@ -489,8 +491,23 @@ then
    $(eval ssh_askpass --exports)
 fi
 
+# Transform the -C for compression into -o Compression=yes
+if [ "$_C" = "yes" ]
+then
+   __ssh_option_ARG[${#__ssh_option_ARG[@]}]="Compression=yes"
+fi
+
 # Collect ssh options
 unset SshOpts
+
+# Pass on the -F configuration file option to ssh
+if [ "$_F" = "yes" ]
+then
+   SshOpts[${#SshOpts[@]}]='-F'
+   SshOpts[${#SshOpts[@]}]="$_F_ARG"
+fi
+
+# Apply -o options for the rest
 for SshOpt in ${__ssh_option_ARG[@]}
 do
    SshOpts[${#SshOpts[@]}]='-o'
