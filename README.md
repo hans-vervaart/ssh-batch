@@ -233,6 +233,7 @@ Helper scripts to quickly open/close/list a vault.
 
 ### Usage example
 ```sh
-$ . /openvault 
+$ . ./openvault 
 [ssh_askpass] Open vault secret:**********
 ```
+note that you can use ". openvault" if it's in the path, but somehow that does not look easier to explain.
