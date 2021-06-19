@@ -629,7 +629,7 @@ do
       fi
    else
       WaitForBackGroundSessions \
-         "Session throttle $MaxPs reached, continueing at $MinPs" $MinPs $MaxPs
+         "Session throttle $MaxPs reached, continuing at $MinPs" $MinPs $MaxPs
       # Quiet mode?
       if [ "$__quiet" != "yes" ]
       then
