@@ -510,3 +510,4 @@ unset __flush_cache  __vault_ignore __exports __no_trap __no_set _h __help
 
 # restore umask
 umask "$UMASK_"
+unset UMASK_
