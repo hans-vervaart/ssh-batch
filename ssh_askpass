@@ -246,6 +246,13 @@ then
    done
 fi
 
+if [ "$__vault_show" = "yes" ] && [ ! -s $VaultFile ]
+then
+   MSG_="Nothing to show you, there is no vault file."
+   echo "echo '$MSG_'"
+   exit 4
+fi
+
 
 # Input new account passwords
 if  [ "$__flush_cache" != "yes" ]
