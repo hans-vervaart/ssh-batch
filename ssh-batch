@@ -500,6 +500,12 @@ fi
 # Collect ssh options
 unset SshOpts
 
+# Enable verbose ssh when ---debug is used in ssh-batch
+if [ "$___debug" = "yes" ]
+then
+   SshOpts[${#SshOpts[@]}]='-v'
+fi
+
 # Pass on the -F configuration file option to ssh
 if [ "$_F" = "yes" ]
 then
