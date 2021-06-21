@@ -124,9 +124,26 @@ chmod 600 $HOME/.$BaseName > /dev/null 2>&1
 
 VaultFile=$HOME/.${BaseName}.vault
 CheckFile=$HOME/.${BaseName}.check
+AlgoritmFile=$HOME/.${BaseName}.algorithm
 
 OPEN_SSL=$(which openssl 2> /dev/null | grep '^/')
-OPEN_SSL_ALGORITHM="-aes-256-cbc -pbkdf2"
+
+OPEN_SSL_ALGORITHM=""
+if [ -r "$AlgoritmFile" ]
+then
+   OPEN_SSL_ALGORITHM=$(cat "$AlgoritmFile")
+else
+   # Check if we have a current openssl binary that supports -pbkdf2
+   strings $OPEN_SSL |grep -q PKCS5_PBKDF2
+   if [ $? = 0 ]
+   then
+      iters=$((90000 + RANDOM % 1000))
+      OPEN_SSL_ALGORITHM="-aes-256-cbc -pbkdf2 -iter $iters"
+   else
+      OPEN_SSL_ALGORITHM="-aes-256-cbc"
+   fi
+   echo "$OPEN_SSL_ALGORITHM" > "$AlgoritmFile"  2> /dev/null
+fi
 SETSID=$(which setsid 2> /dev/null | grep '^/')
 [ "$SETSID" = "" ] && SETSID=$(which setpgrp 2> /dev/null | grep '^/')
 
