@@ -553,25 +553,8 @@ else
    fi
 fi
 
-for Hostname in $HostNames
+for HostName in $HostNames
 do
-   # Remove additional information in the hostname
-   UserName=$(echo $Hostname | grep '@' | sed -e 's/@[^@]*$//')
-   Hostname=$(echo $Hostname | sed 's/.*@//')
-   if [ "$___info_sep_ARG" = "" ]
-   then
-      HostName=$Hostname
-      unset HostInfo
-      unset HostIpAd
-   else
-      if ! echo $Hostname | grep "${___info_sep_ARG:0:1}" > /dev/null 2>&1
-      then
-         Hostname=$(echo $Hostname | ${SedInfo[@]})
-      fi
-      HostName=$(echo $Hostname|awk -F ${___info_sep_ARG:0:1} '{print $1'})
-      HostInfo=$(echo $Hostname|awk -F ${___info_sep_ARG:0:1} '{print $2'})
-      HostIpAd=$(echo $Hostname|awk -F ${___info_sep_ARG:0:1} '{print $3'})
-   fi
 
    unset HostOpts
    # Check for Jumphost info (^). Multiple jumphosts will be comma separated
@@ -588,6 +571,25 @@ do
 
       # Correct the HostName
       HostName=$(echo $HostName | awk -F^ '{print $NF}')
+   fi
+
+   # Remove additional information in the hostname
+   UserName=$(echo $HostName | grep '@' | sed -e 's/@[^@]*$//')
+   HostName=$(echo $HostName | sed 's/.*@//')
+   
+   if [ "$___info_sep_ARG" = "" ]
+   then
+      HostName=$HostName
+      unset HostInfo
+      unset HostIpAd
+   else
+      if ! echo $HostName | grep "${___info_sep_ARG:0:1}" > /dev/null 2>&1
+      then
+         HostName=$(echo $HostName | ${SedInfo[@]})
+      fi
+      HostName=$(echo $HostName|awk -F ${___info_sep_ARG:0:1} '{print $1'})
+      HostInfo=$(echo $HostName|awk -F ${___info_sep_ARG:0:1} '{print $2'})
+      HostIpAd=$(echo $HostName|awk -F ${___info_sep_ARG:0:1} '{print $3'})
    fi
 
    # Check for :port
@@ -621,10 +623,10 @@ do
       if [ "$__quiet" = "yes" ]
       then
          # Log the failure
-         echo "# Hostname ($Hostname) check failed, skipping host" \
+         echo "# Hostname ($HostName) check failed, skipping host" \
               > $OutputFile
       else
-         echo "# Hostname ($Hostname) check failed, skipping host" \
+         echo "# Hostname ($HostName) check failed, skipping host" \
               | tee $OutputFile >&2
       fi
    else
