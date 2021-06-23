@@ -457,6 +457,17 @@ then
       echo
    fi
 
+   # sometimes when using a jumphost, the -o StrictHostKeyChecking=no is not propagated
+   if [ $NrOfArgs -eq $# ] && [ "$1" != "" ]
+   then
+      echo "$1"|grep -q -e "Please type 'yes' or 'no'" -e 'Are you sure you want to continue connecting'
+      if [ $? = 0 ]
+      then
+         echo "yes"
+         NrOfArgs=0
+      fi
+   fi   
+   
    if [ $NrOfArgs -eq $# ] && [ "$1" != "" ]
    then
       echo "$SSH_ASKPASS_CACHE" |  tr '-' '\n' | $OPEN_SSL base64 -d | \
