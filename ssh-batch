@@ -29,7 +29,7 @@
 # sessions is droped 10% of the <value>
 #
 # -> The hidden option ---bg-session-throttle-hysteresis <value>, controls
-#    the number of sessions to drop for continueation.
+#    the number of sessions to drop for continuation.
 #
 # An insource file can be setup to control the defaults. A search will be done
 # in $HOME, the dir where the script resides and /etc. When a file is found,
@@ -110,14 +110,14 @@
 #--bg-log-dir#          Background logs directory and enable background runs.
 #--bg-session-throttle# Maximum background runs.
 #--bg-timeout#          The wait for all background runs time-out.
-#-C#                    Requests ssh to use gzip compression for all tramsmitted data.
+#-C#                    Requests ssh to use gzip compression for all transmitted data.
 #--exit-status#         Add the EXIT_STATUS of the inline to the output.
 #-F#                    Specifies an alternative per-user ssh configuration file.
 #--hostnames#           Add the hostname to the output.
 #--no-info#             No info messages, only ssh command and host output.
 #--no-ssh-askpass#      Disable ssh_askpass usage (when ssh-keys are used).
 #--quiet#               Only host output.
-#--ssh-option#          Options to be bassed to the ssh command.
+#--ssh-option#          Options to be passed to the ssh command.
 #--tags#                Add tags (inline names surrounded by { } in the output.
 ###############################################################################
 
