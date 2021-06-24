@@ -100,11 +100,14 @@
 ########################### extra help ########################################
 #Usage:# The hosts argument can be a single host name or multiple hostnames.
 #Usage:#
-#Usage:# Multiple hostnames are multiple arguments. Arguments with a / are 
-#Usage:# text files containing hostnames. Hostname files can be nested.
+#Usage:# Multiple hostnames are multiple arguments. Arguments including a /
+#Usage:# are text files containing hostnames. Tip: Hostname files can be nested.
 #Usage:# A hostname can contain a port (hostname:port), which will be passed as:
 #Usage:#
 #Usage:#   #ssh -p port hostname 
+#Usage:#
+#Usage:# Jumphosts can be added with a ^ as concatination character to the
+#Usage:# hostname (jumphost^hostname). Multiple jumphosts are supported.
 #--all-hosts#           Enables the hostnames with a 'soft' comment (- or %).
 #--bg-disable#          Disable background runs, when --bg-log-dir is provided.
 #--bg-log-dir#          Background logs directory and enable background runs.
@@ -118,7 +121,7 @@
 #--no-ssh-askpass#      Disable ssh_askpass usage (when ssh-keys are used).
 #--quiet#               Only host output.
 #--ssh-option#          Options to be passed to the ssh command.
-#--tags#                Add tags (inline names surrounded by { } in the output.
+#--tags#                Add tags; inline names surrounded by { } in the output.
 ###############################################################################
 
 #
@@ -555,10 +558,12 @@ fi
 
 for HostName in $HostNames
 do
-
+   # Start the collection of host specific ssh options in an array
    unset HostOpts
+
    # Check for Jumphost info (^). Multiple jumphosts will be comma separated
-   if echo $HostName | grep -q '\^'
+   # Only when ^ is not in use for ---info-sep ARG
+   if echo $HostName | grep -q '\^' && ! echo "$___info_sep_ARG" | grep -q '\^'
    then
       # Multiple jumphosts are converted to a , separated list
       HostOpts=($(echo $HostName | sed 's/\^[^^]*$//' | \
@@ -592,7 +597,7 @@ do
       HostIpAd=$(echo $HostName|awk -F ${___info_sep_ARG:0:1} '{print $3'})
    fi
 
-   # Check for :port
+   # Check for :port to be added as host specific ssh option array
    if echo $HostName | grep -q ':'
    then
       HostOpts[${#HostOpts[@]}]='-p'
