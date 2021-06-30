@@ -122,7 +122,27 @@
 #--quiet#               Only host output.
 #--ssh-option#          Options to be passed to the ssh command.
 #--tags#                Add tags; inline names surrounded by { } in the output.
-###############################################################################
+#-A#          Enables forwarding of the authentication agent connection.
+#-4#          Forces ssh to use IPv4 addresses only.
+#-6#          Forces ssh to use IPv6 addresses only.
+#-a#          Disables forwarding of the authentication agent connection.
+#-f#          Requests ssh to go to background just before command execution.  
+#-G#          Causes ssh to print its configuration after evaluating Host and Match blocks and exit.
+#-g#          Allows remote hosts to connect to local forwarded ports.
+#-K#          Enables GSSAPI-based authentication and forwarding (delegation) of GSSAPI credentials to the server.
+#-k#          Disables forwarding (delegation) of GSSAPI credentials to the server.
+#-M#          Places the ssh client into “master” mode for connection sharing.
+#-N#          Do not execute a remote command.  This is useful for just forwarding ports.
+#-n#          Redirects stdin from /dev/null (actually, prevents reading from stdin). 
+#-q#          Quiet mode.  Causes most warning and diagnostic messages to be suppressed.
+#-s#          May be used to request invocation of a subsystem on the remote system.
+#-T#          Disable pseudo-terminal allocation.
+#-t#          Force pseudo-terminal allocation.
+#-V#          Display the version number and exit.
+#-v#          Verbose mode.
+#-x#          Disables X11 forwarding.
+#-Y#          Enables trusted X11 forwarding.
+#-y#          Send log information using the syslog(3) system module.  ###############################################################################
 
 #
 # By creating a $HOME/.ssh-batch with variables, these settings can be
@@ -502,6 +522,16 @@ fi
 
 # Collect ssh options
 unset SshOpts
+
+# pass through all short parameters to scp
+for pvar in 4 6 A a C f G g K k M N n q s T t V v X x Y y
+do
+    _pvar="_$pvar"
+    if [ "${!_pvar}" = "yes" ]
+    then
+        SshOpts[${#SshOpts[@]}]="-${pvar}"
+    fi
+done
 
 # Enable verbose ssh when ---debug is used in ssh-batch
 if [ "$___debug" = "yes" ]
