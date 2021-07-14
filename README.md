@@ -1,4 +1,5 @@
 # SSH-BATCH
+![ssh-batch logo](images/ssh-batch_icon.png)
 
 A set of 3 scripts to run commands as batch over multiple systems.
 
