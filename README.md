@@ -1,5 +1,5 @@
 # SSH-BATCH
-<div align="right"><img align="right" src="images/ssh-batch_icon.png" /></div>
+<div align="right"><img align="right" src="extra/images/ssh-batch_icon.png" /></div>
 A set of 3 scripts to run commands as batch over multiple systems.
 
 - ssh-batch  (run commands remotely using `ssh` without temporal files on the systems)
