@@ -114,7 +114,9 @@
 #--bg-session-throttle# Maximum background runs.
 #--bg-timeout#          The wait for all background runs time-out.
 #--exit-status#         Add the EXIT_STATUS of the inline to the output.
+#--fqdn-logname#        Log file name and output name in fqdn.
 #--hostnames#           Add the hostname to the output.
+#--login-name#          Login user name (whole batch, excluding jumphosts)
 #--no-info#             No info messages, only ssh command and host output.
 #--no-ssh-askpass#      Disable ssh_askpass usage (when ssh-keys are used).
 #--quiet#               Only host output.
@@ -586,6 +588,12 @@ do
    # Run the hostname correction plugin
    Host=$(CheckHostName "$HostName" "$UserName" "$HostInfo" "$HostIpAd")
 
+   # Add username by option
+   if [ "$__login_name" = "yes" ]
+   then
+      UserName=$__login_name_ARG
+   fi
+
    # Add @ to the UserName (if not empty)
    UserName=$(echo $UserName | sed 's/.$/\0@/')
 
@@ -593,7 +601,13 @@ do
    then
       if [ "$__bg_log_dir" = "yes" ]
       then
-         OutputFile="$(echo $__bg_log_dir_ARG | sed 's,/*$,,')/${HostName}"
+         OutputFile="$(echo $__bg_log_dir_ARG | sed 's,/*$,,')"
+         if [ "$__fqdn_logname" = "yes" ]
+         then
+            OutputFile="${OutputFile}/${HostName}"
+         else
+            OutputFile="${OutputFile}/$(echo ${HostName} | sed 's,[.].*,,')"
+         fi
          if [ "$HostInfo" != "" ]
          then
             OutputFile="${OutputFile}_${HostInfo}"
@@ -626,7 +640,13 @@ do
       fi
       if [ "$__bg_log_dir" = "yes" ]
       then
-         OutputFile="$(echo $__bg_log_dir_ARG | sed 's,/*$,,')/${HostName}"
+         OutputFile="$(echo $__bg_log_dir_ARG | sed 's,/*$,,')"
+         if [ "$__fqdn_logname" = "yes" ]
+         then
+            OutputFile="${OutputFile}/${HostName}"
+         else
+            OutputFile="${OutputFile}/$(echo ${HostName} | sed 's,[.].*,,')"
+         fi
          if [ "$HostInfo" != "" ]
          then
             OutputFile="${OutputFile}_${HostInfo}"
@@ -647,8 +667,14 @@ do
       else
          if [ "$__hostnames" = "yes" ]
          then
+            if [ "$__fqdn_logname" = "yes" ]
+            then
+               HostNm=${HostName}
+            else
+               HostNm=$(echo ${HostName} | sed 's,[.].*,,')
+            fi
             $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \
-                        "${Command}" | sed "s/^/${HostName}:/"
+                        "${Command}" | sed "s/^/${HostNm}:/"
          else
             $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \
                         "${Command}"
