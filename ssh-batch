@@ -238,7 +238,8 @@ InLine2Command()
              -e 's/;2;/;;/g' ${Sed_SshInNextScript[@]} \
              -e 's,\\[[:space:]]*;,,g' \
              -e 's,\([(]\)[[:space:]]*;,\1,g' \
-             -e 's,([[:space:]]*)[[:space:]]*;[[:space:]]*{[[:space:]]*;,(){,g'\
+             -e 's,[[:space:]]*([[:space:]]*)[[:space:];]*{[[:space:];]*,(){ ,g' \
+             -e 's,\([[:space:]]function[[:space:]]\)[[:space:]]*\([^();[:space:]][^();[:space:]]*\)[;[:space:]]*{[;[:space:]]*,\1\2 { ,g' \
              -e 's,\([;[:space:]]do\)[[:space:]]*;,\1,g' \
              -e 's,\([;[:space:]]then\)[[:space:]]*;,\1,g' \
              -e 's,\([;[:space:]]else\)[[:space:]]*;,\1,g' \
