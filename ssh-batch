@@ -590,13 +590,22 @@ do
    Host=$(CheckHostName "$HostName" "$UserName" "$HostInfo" "$HostIpAd")
 
    # Add username by option
-   if [ "$__login_name" = "yes" ]
+   if [ "$__login_name" = "yes" ]  && \
+      ( [ "$___at_login_name_priority" != "yes" ] || [ "$UserName" = "" ] )
    then
-      UserName=$__login_name_ARG
+      UserName=$(echo ${__login_name_ARG[@]} | tr ' ' ',')
    fi
 
-   # Add @ to the UserName (if not empty)
+   # Add @ to the UserName (if not empty). Also with , separated
    UserName=$(echo $UserName | sed 's/.$/\0@/')
+
+   # setup UserNames if we have a list, include the @
+   unset UserNames
+   if echo $UserName | grep -q ','
+   then
+      UserNames="$(echo $UserName | grep ',' | sed 's/,/@ /g')"
+   fi
+   # if UserNames is not empty we have a request for multiple login tries
 
    if [ "$Host" = "" ]
    then
@@ -658,12 +667,33 @@ do
          fi
          if [ "$__bg_disable" = "yes" ] || [ "$SETSID" = "" ]
          then
-            $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \ 
-                        "${Command}" > ${OutputFile} 2>&1
+            if [ "$UserNames" = "" ]
+            then
+               $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \ 
+                           "${Command}" > ${OutputFile} 2>&1
+            else
+               # This will overwrite UserName
+               for UserName in $UserNames
+               do
+                  $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \
+                              "${Command}exit 0;" && break
+               done > ${OutputFile} 2>&1
+            fi
          else
-            $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \
-                        "${Command}" > ${OutputFile} 2>&1 &
-            PIDs="$PIDs $!"
+            if [ "$UserNames" = "" ]
+            then
+               $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \
+                           "${Command}" > ${OutputFile} 2>&1 &
+               PIDs="$PIDs $!"
+            else
+               # This will overwrite UserName
+               for UserName in $UserNames
+               do
+                  $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \
+                              "${Command}exit 0;" && break
+               done > ${OutputFile} 2>&1 &
+               PIDs="$PIDs $!"
+            fi
          fi
       else
          if [ "$__hostnames" = "yes" ]
@@ -674,11 +704,31 @@ do
             else
                HostNm=$(echo ${HostName} | sed 's,[.].*,,')
             fi
-            $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \
-                        "${Command}" | sed "s/^/${HostNm}:/"
+            if [ "$UserNames" = "" ]
+            then
+               $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \
+                           "${Command}" | sed "s/^/${HostNm}:/"
+            else
+               # This will overwrite UserName
+               for UserName in $UserNames
+               do
+                  $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \
+                              "${Command}exit 0;" && break
+               done | sed "s/^/${HostNm}:/"
+            fi
          else
-            $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \
-                        "${Command}"
+            if [ "$UserNames" = "" ]
+            then
+               $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \
+                           "${Command}"
+            else
+               # This will overwrite UserName
+               for UserName in $UserNames
+               do
+                  $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \
+                              "${Command}exit 0;" && break
+               done
+            fi
          fi
       fi
    fi
