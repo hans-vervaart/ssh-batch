@@ -115,8 +115,10 @@
 #--bg-timeout#          The wait for all background runs time-out.
 #-C#                    Requests ssh to use gzip compression for all transmitted data.
 #--exit-status#         Add the EXIT_STATUS of the inline to the output.
+#--fqdn-logname#        Log file name and output name in fqdn.
 #-F#                    Specifies an alternative per-user ssh configuration file.
 #--hostnames#           Add the hostname to the output.
+#--login-name#          Login user name (whole batch, excluding jumphosts)
 #--no-info#             No info messages, only ssh command and host output.
 #--no-ssh-askpass#      Disable ssh_askpass usage (when ssh-keys are used).
 #--quiet#               Only host output.
@@ -142,7 +144,8 @@
 #-v#          Verbose mode.
 #-x#          Disables X11 forwarding.
 #-Y#          Enables trusted X11 forwarding.
-#-y#          Send log information using the syslog(3) system module.  ###############################################################################
+#-y#          Send log information using the syslog(3) system module.
+###############################################################################
 
 #
 # By creating a $HOME/.ssh-batch with variables, these settings can be
@@ -258,7 +261,8 @@ InLine2Command()
              -e 's/;2;/;;/g' ${Sed_SshInNextScript[@]} \
              -e 's,\\[[:space:]]*;,,g' \
              -e 's,\([(]\)[[:space:]]*;,\1,g' \
-             -e 's,([[:space:]]*)[[:space:]]*;[[:space:]]*{[[:space:]]*;,(){,g'\
+             -e 's,[[:space:]]*([[:space:]]*)[[:space:];]*{[[:space:];]*,(){ ,g' \
+             -e 's,\([[:space:]]function[[:space:]]\)[[:space:]]*\([^();[:space:]][^();[:space:]]*\)[;[:space:]]*{[;[:space:]]*,\1\2 { ,g' \
              -e 's,\([;[:space:]]do\)[[:space:]]*;,\1,g' \
              -e 's,\([;[:space:]]then\)[[:space:]]*;,\1,g' \
              -e 's,\([;[:space:]]else\)[[:space:]]*;,\1,g' \
@@ -523,7 +527,7 @@ fi
 # Collect ssh options
 unset SshOpts
 
-# pass through all short parameters to scp
+# pass through all short parameters to ssh
 for pvar in 4 6 A a C f G g K k M N n q s T t V v X x Y y
 do
     _pvar="_$pvar"
@@ -614,7 +618,6 @@ do
    
    if [ "$___info_sep_ARG" = "" ]
    then
-      HostName=$HostName
       unset HostInfo
       unset HostIpAd
    else
@@ -640,14 +643,34 @@ do
    # Run the hostname correction plugin
    Host=$(CheckHostName "$HostName" "$UserName" "$HostInfo" "$HostIpAd")
 
+   # Add username by option
+   if [ "$__login_name" = "yes" ]  && \
+      ( [ "$___at_login_name_priority" != "yes" ] || [ "$UserName" = "" ] )
+   then
+      UserName=$(echo ${__login_name_ARG[@]} | tr ' ' ',')
+   fi
    # Add @ to the UserName (if not empty)
    UserName=$(echo $UserName | sed 's/.$/\0@/')
+
+   # setup UserNames if we have a list, include the @
+   unset UserNames
+   if echo $UserName | grep -q ','
+   then
+      UserNames="$(echo $UserName | grep ',' | sed 's/,/@ /g')"
+   fi
+   # if UserNames is not empty we have a request for multiple login tries
 
    if [ "$Host" = "" ]
    then
       if [ "$__bg_log_dir" = "yes" ]
       then
-         OutputFile="$(echo $__bg_log_dir_ARG | sed 's,/*$,,')/${HostName}"
+         OutputFile="$(echo $__bg_log_dir_ARG | sed 's,/*$,,')"
+         if [ "$__fqdn_logname" = "yes" ]
+         then
+            OutputFile="${OutputFile}/${HostName}"
+         else
+            OutputFile="${OutputFile}/$(echo ${HostName} | sed 's,[.].*,,')"
+         fi
          if [ "$HostInfo" != "" ]
          then
             OutputFile="${OutputFile}_${HostInfo}"
@@ -680,7 +703,13 @@ do
       fi
       if [ "$__bg_log_dir" = "yes" ]
       then
-         OutputFile="$(echo $__bg_log_dir_ARG | sed 's,/*$,,')/${HostName}"
+         OutputFile="$(echo $__bg_log_dir_ARG | sed 's,/*$,,')"
+         if [ "$__fqdn_logname" = "yes" ]
+         then
+            OutputFile="${OutputFile}/${HostName}"
+         else
+            OutputFile="${OutputFile}/$(echo ${HostName} | sed 's,[.].*,,')"
+         fi
          if [ "$HostInfo" != "" ]
          then
             OutputFile="${OutputFile}_${HostInfo}"
@@ -691,21 +720,68 @@ do
          fi
          if [ "$__bg_disable" = "yes" ] || [ "$SETSID" = "" ]
          then
-            $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \ 
-                        "${Command}" > ${OutputFile} 2>&1
+            if [ "$UserNames" = "" ]
+            then
+               $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \
+                           "${Command}" > ${OutputFile} 2>&1
+            else
+               # This will overwrite UserName
+               for UserName in $UserNames
+               do
+                  $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \
+                              "${Command}exit 0;" && break
+               done > ${OutputFile} 2>&1
+            fi
          else
-            $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \
-                        "${Command}" > ${OutputFile} 2>&1 &
-            PIDs="$PIDs $!"
+            if [ "$UserNames" = "" ]
+            then
+               $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \
+                           "${Command}" > ${OutputFile} 2>&1 &
+               PIDs="$PIDs $!"
+            else
+               # This will overwrite UserName
+               for UserName in $UserNames
+               do
+                  $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \
+                              "${Command}exit 0;" && break
+               done > ${OutputFile} 2>&1 &
+               PIDs="$PIDs $!"
+            fi
          fi
       else
          if [ "$__hostnames" = "yes" ]
          then
-            $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \
-                        "${Command}" | sed "s/^/${HostName}:/"
+            if [ "$__fqdn_logname" = "yes" ]
+            then
+               HostNm=${HostName}
+            else
+               HostNm=$(echo ${HostName} | sed 's,[.].*,,')
+            fi
+            if [ "$UserNames" = "" ]
+            then
+               $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \
+                           "${Command}" | sed "s/^/${HostNm}:/"
+            else
+               # This will overwrite UserName
+               for UserName in $UserNames
+               do
+                  $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \
+                              "${Command}exit 0;" && break
+               done | sed "s/^/${HostNm}:/"
+            fi
          else
-            $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \
-                        "${Command}"
+            if [ "$UserNames" = "" ]
+            then
+               $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \
+                           "${Command}"
+            else
+               # This will overwrite UserName
+               for UserName in $UserNames
+               do
+                  $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \
+                              "${Command}exit 0;" && break
+               done
+            fi
          fi
       fi
    fi
