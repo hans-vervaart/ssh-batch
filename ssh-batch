@@ -4,13 +4,13 @@
 #
 ###############################################################################
 #
-#  Helper script to run command(s) over multiple hosts
+#  Helper script to run command(s)/scriptlet(s) over multiple hosts
 #
 # o Multiple hosts 
 # o Adhoc command(s) input
 # o Adhoc command(s) as argument (behind the - argument)
 # o Single password entry (ssh_askpass)
-# o Parallel sessions, 1 file / host (--bg-log-dir)
+# o Parallel sessions, 1 log-file / host (--bg-log-dir)
 # o No script transfer, the command(s) are run through ssh
 # o Commands from (multiple) 'inline' files converted to adhoc commands
 #   o 'inline' files 'look and feel' like little scripts (after -- argument)
@@ -26,10 +26,10 @@
 #
 # The --bg-session-throttle <value> will wait if the amount of parallel
 # sessions exceeds the <value>, it will continue when the number of
-# sessions is droped 10% of the <value>
+# sessions is dropped 10% of the <value>
 #
 # -> The hidden option ---bg-session-throttle-hysteresis <value>, controls
-#    the number of sessions to drop for continueation.
+#    the number of sessions to drop for continuation.
 #
 # An insource file can be setup to control the defaults. A search will be done
 # in $HOME, the dir where the script resides and /etc. When a file is found,
@@ -40,7 +40,7 @@
 # The insource will be skipped, so that a controlling script can setup the
 # required controls, without the .ssh-batch to be in the way.
 #
-# The hidden option + arg ---info-sep <seperators>
+# The hidden option + arg ---info-sep <separators>
 #   export ___info_sep_ARG=',_'
 # Enables the facility to add info about the hostname to the hostname. Handy to
 # add environment information. (for example lin1234,DEV). The first char will
@@ -48,7 +48,7 @@
 # when a system is not in DNS (for example lin1234,DEV_PHP,192.168.1.2). 
 # Background log files will come back as lin1234_DEV_PHP
 # The next char(s) in the ___info_sep_ARG will be used for alternative
-# info seperator using ',_' will lin1234_DEV_PHP works like lin1234,DEV_PHP
+# info separator using ',_' will lin1234_DEV_PHP works like lin1234,DEV_PHP
 #
 # When a hostname includes a '/' character, the script assumes that a filename
 # is passed instead of a hostname.  Files with hostnames can hold comment
@@ -56,7 +56,7 @@
 # a % or a - are considered to be a 'soft' comment. The --all-hosts option
 # enables the hostnames with a 'soft' comment. The hostnames in a file
 # have to be at the start of the line. Filenames can also be placed in
-# the file. Be careful it is recursive read!! The '/' character need to be in
+# the file. Be careful it is recursively read!! The '/' character need to be in
 # the name to distinct a filename from a hostname (like on the command line).
 # Only hostnames can be 'soft' commented.
 #
@@ -85,13 +85,16 @@
 #
 #  __ssh_option_ARG=("NumberOfPasswordPrompts=1" "StrictHostKeyChecking=no")
 #
+# When providing a user@host and a --login-name user, the priority will be
+# the --login-user. The hidden option ---at-login-name-priority will switch
+# the priority to the user@host.
 #
-# Available hidden options:
+# The hidden option ---debug will show debug output. This can be used in
+# combination with ---dry-run (or) ---no-run, when inline translation errors
+# occur.
 #
-#  ---debug
-#  ---dry-run (or) ---no-run
-#
-# Can be helpful when the command translation runs into an error.
+# With the hidden ---ignore-missing-inlines option, the ERROR message into a
+# WARNING, when missing an inline file.
 #
 # Author:   Hans Vervaart
 # Requires: _option_processor
@@ -106,8 +109,20 @@
 #Usage:#
 #Usage:#   #ssh -p port hostname 
 #Usage:#
-#Usage:# Jumphosts can be added with a ^ as concatination character to the
+#Usage:# Jumphosts can be added with a ^ as concatenation character to the
 #Usage:# hostname (jumphost^hostname). Multiple jumphosts are supported.
+#Usage:#  
+#Usage:# Users can be added with an @ sign (user@host). This also the case
+#Usage:# for jumphosts.
+#Usage:#
+#Usage:# For target hosts, alternative users can be provided as a comma
+#Usage:# separated list:
+#Usage:#
+#Usage:#   user,user2,user3@host or --login-name user,user2,user3
+#Usage:#  
+#Usage:# The user2 en user3 are the alternative users, when user cannot login,
+#Usage:# the 'next' is tried. When a user succeeds to login, the other leftover
+#Usage:# alternative users are skipped.
 #--all-hosts#           Enables the hostnames with a 'soft' comment (- or %).
 #--bg-disable#          Disable background runs, when --bg-log-dir is provided.
 #--bg-log-dir#          Background logs directory and enable background runs.
@@ -116,7 +131,7 @@
 #--exit-status#         Add the EXIT_STATUS of the inline to the output.
 #--fqdn-logname#        Log file name and output name in fqdn.
 #--hostnames#           Add the hostname to the output.
-#--login-name#          Login user name (whole batch, excluding jumphosts)
+#--login-name#          Login user name(s) (whole batch, excluding jumphosts)
 #--no-info#             No info messages, only ssh command and host output.
 #--no-ssh-askpass#      Disable ssh_askpass usage (when ssh-keys are used).
 #--quiet#               Only host output.
@@ -545,7 +560,7 @@ do
    # Only when ^ is not in use for ---info-sep ARG
    if echo $Hostname | grep -q '\^' && ! echo "$___info_sep_ARG" | grep -q '\^'
    then
-      # Multiple jumphosts are converted to a , seperated list
+      # Multiple jumphosts are converted to a , separated list
       HostOpts=($(echo $Hostname | sed 's/\^[^^]*$//' | \
                   tr '^' ',' | sed 's/^./-J \0/'))
       if [ "$__no_info" != "yes" ]
