@@ -123,20 +123,23 @@
 #Usage:# The user2 en user3 are the alternative users, when user cannot login,
 #Usage:# the 'next' is tried. When a user succeeds to login, the other leftover
 #Usage:# alternative users are skipped.
-#--all-hosts#           Enables the hostnames with a 'soft' comment (- or %).
-#--bg-disable#          Disable background runs, when --bg-log-dir is provided.
-#--bg-log-dir#          Background logs directory and enable background runs.
-#--bg-session-throttle# Maximum background runs.
-#--bg-timeout#          The wait for all background runs time-out.
-#--exit-status#         Add the EXIT_STATUS of the inline to the output.
-#--fqdn-logname#        Log file name and output name in fqdn.
-#--hostnames#           Add the hostname to the output.
-#--login-name#          Login user name(s) (whole batch, excluding jumphosts)
-#--no-info#             No info messages, only ssh command and host output.
-#--no-ssh-askpass#      Disable ssh_askpass usage (when ssh-keys are used).
-#--quiet#               Only host output.
-#--ssh-option#          Options to be bassed to the ssh command.
-#--tags#                Add tags; inline names surrounded by { } in the output.
+#--all-hosts#            Enables the hostnames with a 'soft' comment (- or %).
+#--bg-disable#           Disable background runs, when --bg-log-dir is provided.
+#--bg-log-dir#           Background logs directory and enable background runs.
+#--bg-session-throttle#  Maximum background runs.
+#--bg-timeout#           The wait for all background runs time-out.
+#--exit-status#          Add the EXIT_STATUS of the inline to the output.
+#--fqdn-logname#         Log file name and output name in fqdn.
+#--hostnames#            Add the hostname to the output.
+#--login-name#           Login user name(s) (whole batch, excluding jumphosts)
+#--no-info#              No info messages, only ssh command and host output.
+#--no-ssh-askpass#       Disable ssh_askpass usage (when ssh-keys are used).
+#--no-pass-through-opts# Options between the last hostname and the - will be
+#--no-pass-through-opts# passed through as additional ssh options. This option
+#--no-pass-through-opts# will disable the pass-through.
+#--quiet#                Only host output.
+#--ssh-option#           Options to be bassed to the ssh command.
+#--tags#                 Add tags; inline names surrounded by { } in the output.
 ###############################################################################
 
 #
@@ -397,6 +400,24 @@ do
    shift
 done
 
+# Collect ssh options
+unset SshOpts
+for SshOpt in ${__ssh_option_ARG[@]}
+do
+   SshOpts[${#SshOpts[@]}]='-o'
+   SshOpts[${#SshOpts[@]}]="$SshOpt"
+done
+
+# Add passthrough ssh options
+while [ $# -ne 0 ] && ! echo "$1" | egrep -q '^[-]{1,3}$'
+do
+   if [ "$__no_pass_through_opts" = "" ]
+   then
+      SshOpts[${#SshOpts[@]}]="$1"
+   fi
+   shift
+done
+
 # Read the - contents into AdHocCmds
 if [ "$1" = "-" ]
 then
@@ -471,6 +492,7 @@ then
    echo "# InLines  : $InLines"
    echo "# Args     : $Args"
    echo "# Command  : $Command"
+   echo "# SshOpts  : ${SshOpts[@]}"
    echo "# Log dir  : $__bg_log_dir_ARG"
 fi
 
@@ -509,14 +531,6 @@ elif which ssh_askpass 2> /dev/null | grep '^/' > /dev/null 2>&1
 then
    $(eval ssh_askpass --exports)
 fi
-
-# Collect ssh options
-unset SshOpts
-for SshOpt in ${__ssh_option_ARG[@]}
-do
-   SshOpts[${#SshOpts[@]}]='-o'
-   SshOpts[${#SshOpts[@]}]="$SshOpt"
-done
 
 # Clean start
 unset PIDs
