@@ -224,7 +224,7 @@ InLine2Command()
          then
             echo "# [INFO] Skipping directory $File" >&2
          fi
-      elif [ ! -r $File ]
+      elif [ ! -r $File ] && [ "$File" != '/dev/stdin' ]
       then
          echo "! $MissingWarnErr inline-file $File not found" >&2
          MissingInLines=$(($MissingInLines+1))
@@ -243,6 +243,11 @@ InLine2Command()
             # Format: export <InLineName>_myvar="content"
             set | grep "^$(basename $File)_[A-Za-z][A-Za-z]*=" | \
             sed "s/^$(basename $File)_//"
+            # remove /dev/stdin (does not work with su - <user>)
+            if [ "$File" = '/dev/stdin' ]
+            then
+               unset File
+            fi
             # Remove comments.
             # Beware: the ' is not allowed in a trailing comment'
             sed -e "s/[[:space:]]#[^'\"]*$//g" \
