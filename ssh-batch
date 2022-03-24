@@ -161,7 +161,7 @@ __ssh_option_ARG=("NumberOfPasswordPrompts=1" "StrictHostKeyChecking=no")
 _help_show_args="hosts [[- adhoc-cmds]|[-- inline-files]][--- args]"
 
 # Add the RunDir if not in the PATH, to be sure we will find the required
-# tools
+# tools.
 RunDir=$(cd $(dirname $0) 2> /dev/null;pwd)
 if [ "$RunDir" != "" ] &&  \
    ! echo $PATH | tr ':' '\n' | grep "^$RunDir\$" > /dev/null 2>&1
@@ -703,7 +703,7 @@ do
          then
             if [ "$UserNames" = "" ]
             then
-               $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \ 
+               $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \
                            "${Command}" > ${OutputFile} 2>&1
             else
                # This will overwrite UserName
