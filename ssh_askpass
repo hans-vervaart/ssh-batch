@@ -415,10 +415,10 @@ then
             export Passw PwdCh
             if [ ${#PwdCh} -eq 0 ] || \
                ! (echo "$RANDOM" | \
-                  $OPEN_SSL enc -des -pass env:Passw \
+                  $OPEN_SSL enc $OPEN_SSL_ALGORITHM -pass env:Passw \
                               -in /dev/stdin \
                               -out /dev/stdout -e | \
-                  $OPEN_SSL enc -des -pass env:PwdCh \
+                  $OPEN_SSL enc $OPEN_SSL_ALGORITHM -pass env:PwdCh \
                               -in /dev/stdin \
                               -out /dev/stdout -d ) > /dev/null 2>&1
             then
