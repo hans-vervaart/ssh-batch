@@ -128,6 +128,7 @@
 #--bg-log-dir#           Background logs directory and enable background runs.
 #--bg-session-throttle#  Maximum background runs.
 #--bg-timeout#           The wait for all background runs time-out.
+#--env-var#              Environment variable(s) to export to the client.
 #--exit-status#          Add the EXIT_STATUS of the inline to the output.
 #--fqdn-logname#         Log file name and output name in fqdn.
 #--hostnames#            Add the hostname to the output.
@@ -194,6 +195,21 @@ then
    __no_info="yes"
 fi
 
+EnvVar()
+{
+   if [ "$__env_var" = "yes" ]
+   then
+      EnvRegExpr="$(echo "${__env_var_ARG[@]}" | tr ',[:space:]' '\n\n' | \
+                    grep -v '^[[:space:]]*$ '| sed -e 's/$/=/' -e 's/^/^/' | \
+                    tr '\n' '|' | sed 's/|$//')"
+      if ! set | egrep "$EnvRegExpr" | base64 2> /dev/null | grep '.'
+      then
+         # Always send something
+         echo
+      fi
+   fi
+}
+
 InLine2Command()
 {
    if [ "$1" = "" ]
@@ -208,6 +224,12 @@ InLine2Command()
    fi
 
    MissingInLines=0
+
+   # Any env var to be picked up?
+   if [ "$__env_var" = "yes" ]
+   then
+      echo -n 'eval $(base64 -d 2> /dev/null | sed '"'"'s|^|export |'"'"');'
+   fi
 
    for File in $Files
    do
@@ -703,28 +725,32 @@ do
          then
             if [ "$UserNames" = "" ]
             then
-               $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \
-                           "${Command}" > ${OutputFile} 2>&1
+               EnvVar | $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} \
+                                    ${UserName}${Host} "${Command}" \
+                                    > ${OutputFile} 2>&1
             else
                # This will overwrite UserName
                for UserName in $UserNames
                do
-                  $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \
-                              "${Command}exit 0;" && break
+                  EnvVar | $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} \
+                                       ${UserName}${Host} \
+                                       "${Command}exit 0;" && break
                done > ${OutputFile} 2>&1
             fi
          else
             if [ "$UserNames" = "" ]
             then
-               $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \
-                           "${Command}" > ${OutputFile} 2>&1 &
+               ( EnvVar | $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} \
+                                      ${UserName}${Host} "${Command}" \
+                                      > ${OutputFile} 2>&1 ) &
                PIDs="$PIDs $!"
             else
                # This will overwrite UserName
                for UserName in $UserNames
                do
-                  $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \
-                              "${Command}exit 0;" && break
+                  EnvVar | $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} \
+                                       ${UserName}${Host} \
+                                       "${Command}exit 0;" && break
                done > ${OutputFile} 2>&1 &
                PIDs="$PIDs $!"
             fi
@@ -740,27 +766,30 @@ do
             fi
             if [ "$UserNames" = "" ]
             then
-               $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \
-                           "${Command}" | sed "s/^/${HostNm}:/"
+               EnvVar | $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} \
+                                     ${UserName}${Host} "${Command}" | \
+                                     sed "s/^/${HostNm}:/"
             else
                # This will overwrite UserName
                for UserName in $UserNames
                do
-                  $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \
-                              "${Command}exit 0;" && break
+                  EnvVar | $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} \
+                                       ${UserName}${Host} \
+                                       "${Command}exit 0;" && break
                done | sed "s/^/${HostNm}:/"
             fi
          else
             if [ "$UserNames" = "" ]
             then
-               $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \
-                           "${Command}"
+               EnvVar | $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} \
+                                    ${UserName}${Host} "${Command}"
             else
                # This will overwrite UserName
                for UserName in $UserNames
                do
-                  $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} ${UserName}${Host} \
-                              "${Command}exit 0;" && break
+                  EnvVar | $SETSID ssh ${SshOpts[@]} ${HostOpts[@]} \
+                                       ${UserName}${Host} \
+                                       "${Command}exit 0;" && break
                done
             fi
          fi
