@@ -241,6 +241,43 @@ then
          sleep 3
       fi
    done
+   if [ "$__vault_list" = "yes" ] || [ "$___vault_list" = "yes" ]
+   then
+      List=($(echo "$SSH_ASKPASS_CACHE" | tr '-' '\n' | \
+              $OPEN_SSL base64 -d  2> /dev/null | \
+              gunzip -c 2>/dev/null | \
+              grep -v '^#'))
+      if [ ${#List[@]} -gt 0 ]
+      then
+         AcTitle="ACCOUNT"
+         PwTitle="PASS"
+         if [ "$___vault_list" = "yes" ]
+         then
+            PwTitle="${PwTitle}WORD"
+            PwMask=(cat)
+         else
+            PwTitle="${PwTitle}MASK"
+            PwMask=(sed 's/./*/g')
+         fi
+         TabLen=$(echo "$AcTitle ${List[@]}" | tr ' ' '\n' | \
+                  sed -e 's/:.*//' -e 's/././g' | \
+                  sort | tail -1 | wc -c)
+         (
+            printf "$AcTitle\t $PwTitle\n" | \
+            tee /dev/stderr | sed 's/[A-Za-z]/=/g'
+         ) 2>&1  | sort -r | expand -t $TabLen
+         i=0
+         while [ ${#List[@]} -gt $i ]
+         do
+            echo "${List[$i]}" | \
+               sed -e 's/^:/"":/' -e 's/:.*/\t/' | tr '\n' ' '
+            echo "${List[$i]}" | \
+               awk -F: '{print $2}' | $OPEN_SSL base64 -d | ${PwMask[@]}
+            echo
+            i=$(($i+1))
+         done | expand -t $TabLen
+      fi
+   fi
 fi
 
 # Input new account passwords
@@ -279,7 +316,6 @@ then
       do
          unset Values Value
          i=0
-         unset Value
          while [ $i -lt $NrAccounts ] || [ "$Value" = "" ]
          do
             printf "[%s$(basename $0)] Enter password:" \
