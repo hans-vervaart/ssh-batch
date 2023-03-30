@@ -60,6 +60,11 @@
 # the name to distinct a filename from a hostname (like on the command line).
 # Only hostnames can be 'soft' commented.
 #
+# The file can be a simple ansible (INI) inventory. Adding a :group will select
+# the [group] from the inventory. The :all group wil provide all hosts.
+# No :group is :all and the default. The [group:children] method is supported
+# and host name expansion (host[01:20] / host[01:20:2]) as well.
+#
 # When a hostname includes a '^' character, the script assumes that the
 # hostname includes a jump-host (jumphost^targethost).
 #
@@ -105,6 +110,13 @@
 #Usage:#
 #Usage:# Multiple hostnames are multiple arguments. Arguments including a /
 #Usage:# are text files containing hostnames. Tip: Hostname files can be nested.
+#Usage:# Simple ansible inventory (INI formated) files can be processed:
+#Usage:#
+#Usage:# The group selection can be added to the filename by adding :group 
+#Usage:# Example: ./inventory:group will select [group]
+#Usage:# The [group:children] method is supported, as well as the host[01:20]
+#Usage:# and host[01:20:2] hostname expansion. Variables are ignored.
+#Usage:#
 #Usage:# A hostname can contain a port (hostname:port), which will be passed as:
 #Usage:#
 #Usage:#   #ssh -p port hostname 
@@ -296,7 +308,7 @@ InLine2Command()
    return $MissingInLines
 }
 
-FilterHostRegExpr='^[^@./_A-Za-z0-9]'
+FilterHostRegExpr='^[^[@./_A-Za-z0-9]'
 if [ "$__all_hosts" = "yes" ]
 then
    FilterHostEgrep='^$'
@@ -306,33 +318,89 @@ fi
 
 FilterHostNames()
 {
-   local NewHostName
+   local NewHostName File Group AlNum
+
+   # For the sed find AlphaNumeric + markers
+   AlNum='\([a-zA-Z0-9][a-zA-Z0-9]*\)'
 
    while [ $# -ne 0 ]
    do
       if echo $1 | grep '/' > /dev/null 2>&1
       then
-         if [ -r $1 ]
+         File="$(echo $1 | awk -F: '{print $1}')"
+         Group="$(echo $1 | awk -F: '{print $2}')"
+         if [ "$Group" = "all" ]
+         then
+            unset Group
+         fi
+         if [ -r $File ]
          then
             # read the content and remove spaces from the start of the line,
             # keep the first word and remove the space after the word
             # including the rest of the line.
-            cd $(dirname $1) 2> /dev/null
+            cd $(dirname $File) 2> /dev/null
             sed -e 's/^[[:space:]]*//' \
                 -e 's/^\([^[:space:]]*\).*/\1/' \
-                -e 's/#.*//' $(basename $1) 2> /dev/null | \
+                -e 's/#.*//' $(basename $File) 2> /dev/null | \
             egrep -v "$FilterHostEgrep" | \
             while read NewHostName
             do
-               FilterHostNames $NewHostName
+               if [ "${NewHostName:0:1}" = "[" ]
+               then
+                  # Flush : and dummy group (close group)
+                  Group="$(echo "$Group" | sed 's/[:[:space:]]//g')"
+                  if [ "$Group" = "" ]
+                  then
+                     if [ "${NewHostName}" != "${NewHostName##*:}" ]
+                     then
+                        # Dummy group to stop output (:vars / :children)
+                        Group=' '
+                     fi
+                  elif [ "$NewHostName" = "[$Group]" ]
+                  then
+                     # Open for hosts
+                     Group=":${Group}"
+                  elif [ "$NewHostName" = "[$Group:children]" ]
+                  then
+                     # Open for hosts groups
+                     Group="::${Group}"
+                  fi
+               elif [ "${Group}" = "" ] || [ "${Group:0:1}" = ":" ]
+               then
+                  if [ "${Group:1:1}" = ":" ]
+                  then
+                     # Process as host group (:children)
+                     FilterHostNames $File:$NewHostName
+                  else
+                     FilterHostNames $NewHostName
+                  fi
+               fi
             done
          fi
       else
-         echo $1 | egrep -v "$FilterHostEgrep" | \
-         sed "s/$FilterHostRegExpr\(.*\)/\1/"  | tr '\n' ' '
+         eval echo $(echo $1 | egrep -v "$FilterHostEgrep" | \
+                     sed -e "s/$FilterHostRegExpr\(.*\)/\1/" \
+                         -e "s/[[]$AlNum:$AlNum[]]/{\1..\2}/g" \
+                         -e "s/[[]$AlNum:$AlNum:$AlNum[]]/{\1..\2..\3}/g" | \
+                     tr '\n' ' ')
       fi
       shift
    done
+}
+
+FilterUniqHostNames()
+{
+   local UniqHostNames CheckHostName
+
+   UniqHostNames=":"
+   for CheckHostName in $(FilterHostNames $*)
+   do
+      if ! echo "$UniqHostNames" | grep -q ":${CheckHostName}:"
+      then
+         echo "$CheckHostName"
+         UniqHostNames="${UniqHostNames}${CheckHostName}:"
+      fi
+   done | tr '\n' ' '
 }
 
 CheckHostName()
@@ -420,9 +488,9 @@ while [ $# -ne 0 ] && [ "${1:0:1}" != "-" ]
 do
    if [ "$HostNames" = "" ]
    then
-      HostNames="$(FilterHostNames $1)"
+      HostNames="$(FilterUniqHostNames $1)"
    else
-      HostNames="${HostNames}$(FilterHostNames $1)"
+      HostNames="${HostNames}$(FilterUniqHostNames $1)"
    fi
    shift
 done
