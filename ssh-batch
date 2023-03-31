@@ -60,10 +60,12 @@
 # the name to distinct a filename from a hostname (like on the command line).
 # Only hostnames can be 'soft' commented.
 #
-# The file can be a simple ansible (INI) inventory. Adding a :group will select
-# the [group] from the inventory. The :all group wil provide all hosts.
-# No :group is :all and the default. The [group:children] method is supported
-# and host name expansion (host[01:20] / host[01:20:2]) as well.
+# Ansible hostfile (INI inventory file) format is supported.
+# Adding a :group (./inventory:group) will select [group] from the inventory.
+# The :all group wil provide all hosts, which is equal to providing no group.
+# The :ungrouped will provide the hosts which are not in part of a group.
+# The [group:children] method and host name range expansion is also supported.
+# (host[01:20] / host[01:20:2]).
 #
 # When a hostname includes a '^' character, the script assumes that the
 # hostname includes a jump-host (jumphost^targethost).
@@ -110,12 +112,12 @@
 #Usage:#
 #Usage:# Multiple hostnames are multiple arguments. Arguments including a /
 #Usage:# are text files containing hostnames. Tip: Hostname files can be nested.
-#Usage:# Simple ansible inventory (INI formated) files can be processed:
+#Usage:# Ansible inventory (INI formated) files are supported.
 #Usage:#
 #Usage:# The group selection can be added to the filename by adding :group 
-#Usage:# Example: ./inventory:group will select [group]
-#Usage:# The [group:children] method is supported, as well as the host[01:20]
-#Usage:# and host[01:20:2] hostname expansion. Variables are ignored.
+#Usage:# Example: ./inventory:group (will select [group]). The :ungrouped 
+#Usage:# hostnames, [group:children], hostname range expansion host[01:20] and
+#Usage:# host[01:20:2] are supported. Variables and group variables are ignored.
 #Usage:#
 #Usage:# A hostname can contain a port (hostname:port), which will be passed as:
 #Usage:#
@@ -339,7 +341,8 @@ FilterHostNames()
             # keep the first word and remove the space after the word
             # including the rest of the line.
             cd $(dirname $File) 2> /dev/null
-            sed -e 's/^[[:space:]]*//' \
+            sed -e '1i[ungrouped]' \
+                -e 's/^[[:space:]]*//' \
                 -e 's/^\([^[:space:]]*\).*/\1/' \
                 -e 's/#.*//' $(basename $File) 2> /dev/null | \
             egrep -v "$FilterHostEgrep" | \
