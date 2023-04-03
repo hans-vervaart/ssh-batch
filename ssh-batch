@@ -318,9 +318,12 @@ else
    FilterHostEgrep='^$|'"$FilterHostRegExpr"
 fi
 
+# One : must be in
+RecurseStack=":"
+
 FilterHostNames()
 {
-   local NewHostName File Group AlNum
+   local NewHostName File Group SaveStack AlNum
 
    # For the sed find AlphaNumeric + markers
    AlNum='\([a-zA-Z0-9][a-zA-Z0-9]*\)'
@@ -372,8 +375,19 @@ FilterHostNames()
                then
                   if [ "${Group:1:1}" = ":" ]
                   then
-                     # Process as host group (:children)
-                     FilterHostNames $File:$NewHostName
+                     # Check for re-entrance
+                     if ! echo "${RecurseStack}" | grep -q ":${NewHostName}:"
+                     then
+                        # Process as host group (:children)
+                        SaveStack="${RecurseStack}"
+                        RecurseStack="${RecurseStack}${NewHostName}:"
+                        FilterHostNames $File:$NewHostName
+                        RecurseStack="${SaveStack}"
+                     elif [ "$___debug" = "yes" ]
+                     then
+                        echo "# Re-entrance [$NewHostName:children] skipped" >&2
+                        echo "# Stack=${RecurseStack}" >&2
+                     fi
                   else
                      FilterHostNames $NewHostName
                   fi
