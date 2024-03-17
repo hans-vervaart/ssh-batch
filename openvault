@@ -7,14 +7,16 @@ if [ $sourced = 1 ];then
         CD="./"
       else
         if [ -x ./bin/ssh_askpass ];then
-            CD="./bin/"
+            CD="./bin"
         fi
       fi
-    fi
-    if [ -x  ${CD}ssh_askpass ];then
-      $(${CD}ssh_askpass --exports $@)
     else
-      echo "Unable to find ssh_askpass"
+      CD=$(dirname "$(which ssh_askpass)")
+    fi
+    if [ -x ${CD}/ssh_askpass ];then
+      $(${CD}/ssh_askpass --exports $@)
+    else
+      echo "Unable to find ssh_askpass (is it executable?)"
     fi
 else
     echo "This script only runs sourced, i.e.:"
