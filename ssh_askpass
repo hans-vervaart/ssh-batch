@@ -1,4 +1,5 @@
 #!/bin/bash
+set +x
 #
 # vim:tabstop=3:expandtab:shiftwidth=3
 #
@@ -97,11 +98,24 @@
 #
 ###############################################################################
 
-# Create .ssh dir if not available
-(umask 0077 && [ "$HOME" != "" ] && mkdir $HOME/.ssh) &> /dev/null
+# find out if this file is executed or sourced # if [ x"${0:0:1}" == x"-" ]
+(return 0 2>/dev/null) && sourced=1 || sourced=0
+
+# If sourced, then $0 does not exist. ___ bypasses _option_processor
+___0="${BASH_SOURCE[0]}"
+___0_dirname=$(dirname $___0)
+___0_basename=$(basename "$___0")
+
+# Get the "ssh" ($___1_) and "askpass" ($___0_) part of "ssh_askpass"
+___1_=$(echo "$___0_basename" | cut -d_ -f1)
+___0_=$(echo "$___0_basename" | cut -d_ -f2)
+___BIN=$(echo "$___0_basename" | tr '[:lower:]' '[:upper:]') # ${___BIN}
+___CACHE=$(echo "${___BIN}_CACHE") # ${___CACHE}
+
+# Save original mask
+UMASK_=$(umask)
 
 # Keep files private
-UMASK_=$(umask)
 umask 0177
 
 # The walk-in vars
@@ -109,22 +123,39 @@ NrOfArgs=$#
 
 # For the options processor
 _help_show_args="[account] .."
-[ -r $(dirname $0)/_option_processor ] && . $(dirname $0)/_option_processor
+[ -r $___0_dirname/_option_processor ] && . $___0_dirname/_option_processor
 
-# Source the arrays and create the ability to change global vars
-BaseName=$(basename $0 | sed 's,_,/,g')
-touch $HOME/.${BaseName} > /dev/null 2>&1
-if [ ! -r $HOME/.$BaseName ]
+
+
+if [ $sourced = 0 ]
 then
-   BaseName=$(basename $0)
+   # Create .ssh dir if not available
+   if [ "$HOME" != "" ]
+   then
+      [ ! -d "$HOME/.${___1_}" ] && \
+         (umask 0077 && mkdir $HOME/.${___1_}) &> /dev/null
+   fi
+   if [ ! -f "$HOME/.${___1_}/${___0_}" ]
+   then
+      touch $HOME/.${___1_}/${___0_} > /dev/null 2>&1 \
+         || touch $HOME/.${___0_} > /dev/null 2>&1
+      chmod 600 $HOME/.${___1_}/${___0_} > /dev/null 2>&1 \
+         || chmod 600 $HOME/.${___0_} > /dev/null 2>&1
+   fi
 fi
 
-. $HOME/.${BaseName} > /dev/null 2>&1
-chmod 600 $HOME/.$BaseName > /dev/null 2>&1
+# Source the arrays and create the ability to change global vars
+___0D="${___1_}/${___0_}"
+if [ ! -r $HOME/."$___0D" ]
+then
+   ___0D=${___0_}
+fi
 
-VaultFile=$HOME/.${BaseName}.vault
-CheckFile=$HOME/.${BaseName}.check
-AlgoritmFile=$HOME/.${BaseName}.algorithm
+. $HOME/.${___0D} > /dev/null 2>&1
+
+VaultFile=$HOME/.${___0D}.vault
+CheckFile=$HOME/.${___0D}.check
+AlgoritmFile=$HOME/.${___0D}.algorithm
 
 OPEN_SSL=$(which openssl 2> /dev/null | grep '^/')
 
@@ -146,7 +177,7 @@ else
 fi
 SETSID=$(which setsid 2> /dev/null | grep '^/')
 [ "$SETSID" = "" ] && SETSID=$(which setpgrp 2> /dev/null | grep '^/')
-[ "$SETSID" = "" ] && SETSID="$(dirname $0)/setsid.pl"
+[ "$SETSID" = "" ] && SETSID="$___0_dirname/setsid.pl"
 
 trap 'stty sane > /dev/null 2>&1 ; printf "^C\r\n" ; umask '"$UMASK_"' ; exit 1' HUP INT QUIT TERM
 
@@ -171,7 +202,7 @@ do
          unset ${__Opt}_ARG
       fi
       if [ $# -gt 0 ] && \
-         cat $0 | tr '$' '\n' | sed 's/$/#/' | \
+         cat $___0 | tr '$' '\n' | sed 's/$/#/' | \
          egrep "^[{]{0,1}${__Opt}_ARG[^A-Za-z_]" > /dev/null 2>&1
       then
          eval ${__Opt}_ARG[$\{#${__Opt}_ARG[@]\}]=\"$1\"
@@ -190,7 +221,7 @@ fi
 
 if [ $NrOfArgs -eq 0 ]
 then
-   exec $0 -h
+   exec $___0 -h
 fi
 
 EchoExports()
@@ -200,9 +231,9 @@ EchoExports()
       SET=set
    fi
 
-   if [ "$SSH_ASKPASS_CACHE" != "" ]
+   if [ "${!___CACHE}" != "" ]
    then
-      for EnvVar in SSH_ASKPASS_CACHE SSH_ASKPASS DISPLAY DISPLAY_ SETSID
+      for EnvVar in ${___CACHE} ${___BIN} DISPLAY DISPLAY_ SETSID
       do
          if echo $SHELL | grep '/sh$' > /dev/null 2>&1
          then
@@ -228,7 +259,7 @@ fi
 if [ "$__flush_cache" = "yes" ]
 then
    [ $NrOfArgs -eq 1 ] && echo
-   for EnvVar in SSH_ASKPASS_CACHE SSH_ASKPASS SETSID
+   for EnvVar in ${___CACHE} ${___BIN} SETSID
    do
       unset $EnvVar
       [ $NrOfArgs -eq 1 ] && echo " unset $EnvVar"
@@ -247,16 +278,16 @@ unset Passw
 if [ "$OPEN_SSL" != "" ] && [ -s $VaultFile ] &&
    [ "$__vault_ignore" != "yes" ]
 then
-   while [ "$SSH_ASKPASS_CACHE" = "" ]
+   while [ "${!___CACHE}" = "" ]
    do
-      printf "[$(basename $0)] Open vault secret:" >&2 ; read -r -s Passw
+      printf "[$___0_basename] Open vault secret:" >&2 ; read -r -s Passw
       printf "%.${#Passw}d\n" '0' | tr '0' '*' >&2
       export Passw
       $(cat $VaultFile 2> /dev/null | $OPEN_SSL base64 -d | \
       ($OPEN_SSL enc -pass env:Passw $OPEN_SSL_ALGORITHM -salt \
                     -in /dev/stdin -out /dev/stdout -d | \
       gunzip -c) 2> /dev/null) > /dev/null 2>&1
-      if [ "$SSH_ASKPASS_CACHE" = "" ]
+      if [ "${!___CACHE}" = "" ]
       then
          echo "Unable to open the vault, wait for retry" >&2
          sleep 3
@@ -275,7 +306,7 @@ fi
 # Input new account passwords
 if  [ "$__flush_cache" != "yes" ]
 then
-if [ "$SSH_ASKPASS_CACHE" = "" ] || [ "$__vault_create" = "yes" ] || \
+if [ "${!___CACHE}" = "" ] || [ "$__vault_create" = "yes" ] || \
    [ "$__update_passwords" = "yes" ] || [ "$__vault_relock" = "yes" ] || \
    [ "$__vault_show" = "yes" ]
 then
@@ -291,9 +322,9 @@ then
       done
       if [ ${#Accounts[@]} -eq 0 ]
       then
-         if [ "$SSH_ASKPASS_CACHE" != "" ]
+         if [ "${!___CACHE}" != "" ]
          then
-            for Acc in $(echo "$SSH_ASKPASS_CACHE" | tr '-' '\n' | \
+            for Acc in $(echo "${!___CACHE}" | tr '-' '\n' | \
                          $OPEN_SSL base64 -d  2> /dev/null | \
                          gunzip -c 2>/dev/null | \
                          grep -v '^#' | sed -e 's/^/"/' -e 's/:.*/"/')
@@ -315,7 +346,7 @@ then
          unset Value
          while [ $i -lt $NrAccounts ] || [ "$Value" = "" ]
          do
-            printf "[%s$(basename $0)] Enter password:" \
+            printf "[%s$___0_basename] Enter password:" \
                "$(echo ${Accounts[$i]} | sed 's/.$/\0@/')" >&2
             unset UnChanged
             if [ "$__vault_show" != "yes" ]
@@ -325,9 +356,9 @@ then
                unset Value
                __vault_ignore="yes"
             fi
-            if [ "$Value" = "" ] && [ "$SSH_ASKPASS_CACHE" != "" ]
+            if [ "$Value" = "" ] && [ "${!___CACHE}" != "" ]
             then
-               Value="$(echo "$SSH_ASKPASS_CACHE" | tr '-' '\n' | \
+               Value="$(echo "${!___CACHE}" | tr '-' '\n' | \
                         $OPEN_SSL base64 -d  2> /dev/null | \
                         gunzip -c 2>/dev/null | \
                         grep -v '^#' | grep "^${Accounts[$i]}:" | \
@@ -380,10 +411,10 @@ then
          fi
          if [ "$Check" = "" ]
          then
-            SSH_ASKPASS_CACHE="$Value"
-            export SSH_ASKPASS_CACHE
-            SSH_ASKPASS=$(cd $(dirname $0);pwd)/$(basename $0)
-            export SSH_ASKPASS
+            declare ${___CACHE}="$Value"
+            export ${___CACHE}
+            declare ${___BIN}=$(cd $___0_dirname;pwd)/$___0_basename
+            export ${___BIN}
             if [ -z "$DISPLAY_" ] && [ ! -z "$DISPLAY" ]
             then
                DISPLAY_=$DISPLAY
@@ -395,7 +426,7 @@ then
       done
    fi
 
-   if [ "$SSH_ASKPASS_CACHE" != "" ] && [ "$OPEN_SSL" != "" ] && \
+   if [ "${!___CACHE}" != "" ] && [ "$OPEN_SSL" != "" ] && \
       ( [ "$__vault_create" = "yes" ] || \
         ( [ -f $VaultFile ] && [ "$__vault_ignore" != "yes" ] ) )
    then
@@ -406,11 +437,11 @@ then
       unset PwdCh
       while [ ${#Passw} -eq 0 ]
       do
-         printf "[$(basename $0)] Lock vault secret:" >&2 ; read -r -s Passw
+         printf "[$___0_basename] Lock vault secret:" >&2 ; read -r -s Passw
          printf "%.${#Passw}d\n" '0' | tr '0' '*' >&2
          if [ ${#Passw} -ne 0 ]
          then
-            printf "[$(basename $0)] Check vault secret:" >&2 ; read -r -s PwdCh
+            printf "[$___0_basename] Check vault secret:" >&2 ; read -r -s PwdCh
             printf "%.${#PwdCh}d\n" '0' | tr '0' '*' >&2
             export Passw PwdCh
             if [ ${#PwdCh} -eq 0 ] || \
@@ -431,17 +462,17 @@ then
       $OPEN_SSL enc -pass env:Passw $OPEN_SSL_ALGORITHM -salt \
                     -in /dev/stdin -out /dev/stdout -e | \
       $OPEN_SSL base64 > $VaultFile
-      printf "[$(basename $0)] New vault content written\n"
+      printf "[$___0_basename] New vault content written\n"
    fi
 fi
 fi
 
 
-if [ "$SSH_ASKPASS_CACHE" != "" ]
+if [ "${!___CACHE}" != "" ]
 then
-   export SSH_ASKPASS_CACHE
-   SSH_ASKPASS=$(cd $(dirname $0);pwd)/$(basename $0)
-   export SSH_ASKPASS
+   export ${___CACHE}
+   declare ${___BIN}=$(cd $___0_dirname;pwd)/$___0_basename
+   export ${___BIN}
    if [ -z "$DISPLAY_" ] && [ ! -z "$DISPLAY" ]
    then
       DISPLAY_=$DISPLAY
@@ -471,7 +502,7 @@ then
    
    if [ $NrOfArgs -eq $# ] && [ "$1" != "" ]
    then
-      echo "$SSH_ASKPASS_CACHE" |  tr '-' '\n' | $OPEN_SSL base64 -d | \
+      echo "${!___CACHE}" |  tr '-' '\n' | $OPEN_SSL base64 -d | \
       gunzip -c | grep -v '^#' | \
       while read Line
       do
@@ -488,7 +519,7 @@ then
                if echo "$1" | grep "$Reg" > /dev/null 2>&1
                then
                   Pwd=$(echo "$Pwc" | $OPEN_SSL base64 -d)
-                  echo $* "<$(basename $0)> ($Arr:$Reg)" >&2
+                  echo $* "<$___0_basename> ($Arr:$Reg)" >&2
                   echo "$Pwd"
                   exit 1
                fi
@@ -498,29 +529,29 @@ then
               echo "$1" | grep "^$Acc" > /dev/null 2>&1
          then
             Pwd=$(echo "$Pwc" | $OPEN_SSL base64 -d)
-            echo $* "<$(basename $0)> (^$Acc)" >&2
+            echo $* "<$___0_basename> (^$Acc)" >&2
             echo "$Pwd"
             exit 2
          elif echo "$1@" | grep "^$Acc@" > /dev/null 2>&1
          then
             Pwd=$(echo "$Pwc" | $OPEN_SSL base64 -d)
-            echo $* "<$(basename $0)> ($Acc)" >&2
+            echo $* "<$___0_basename> ($Acc)" >&2
             echo "$Pwd"
             exit 3
          fi
       done
       if [ $? -eq 0 ]
       then
-         Pwd="$(echo "$SSH_ASKPASS_CACHE" | tr '-' '\n' | \
+         Pwd="$(echo "${!___CACHE}" | tr '-' '\n' | \
                 $OPEN_SSL base64 -d | gunzip -c | \
                 grep -v '^#' | grep "^:" | \
                 sed 's/.*://' | $OPEN_SSL base64 -d)"
          if [ ${#Pwd} -eq 0 ]
          then
-            echo $* "<$(basename $0) FAILED (unknown account)>" >&2
+            echo $* "<$___0_basename FAILED (unknown account)>" >&2
             exit 1
          fi
-         echo $* "<$(basename $0)>" >&2
+         echo $* "<$___0_basename>" >&2
          echo "$Pwd"
       fi
    fi
