@@ -4,7 +4,7 @@ if [ $sourced = 1 ];then
     CD=""
     if [ -z "$(which ssh_askpass)" ];then
       if [ -x "ssh_askpass" ];then
-        CD="./"
+        CD="."
       else
         if [ -x ./bin/ssh_askpass ];then
             CD="./bin"
