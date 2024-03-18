@@ -87,11 +87,11 @@ set +x
 #
 # Testing can be done by running:
 #
-#  ssh_askpass nobody@system
-#  ssh_askpass hv1234@sun000001
-#  ssh_askpass hv1234@aix100006
-#  ssh_askpass hans@lin
-#  ssh_askpass hans@pc
+#  $SSH_ASKPASS nobody@system
+#  $SSH_ASKPASS hv1234@sun000001
+#  $SSH_ASKPASS hv1234@aix100006
+#  $SSH_ASKPASS hans@lin
+#  $SSH_ASKPASS hans@pc
 #
 #  Author  : Hans vervaart
 #  Requires: _option_processor
@@ -109,8 +109,8 @@ ___0_basename=$(basename "$___0")
 # Get the "ssh" ($___1_) and "askpass" ($___0_) part of "ssh_askpass"
 ___1_=$(echo "$___0_basename" | cut -d_ -f1)
 ___0_=$(echo "$___0_basename" | cut -d_ -f2)
-___BIN=$(echo "$___0_basename" | tr '[:lower:]' '[:upper:]') # ${___BIN}
-___CACHE=$(echo "${___BIN}_CACHE") # ${___CACHE}
+___BIN=$(echo "$___0_basename" | tr '[:lower:]' '[:upper:]') # SSH_ASKPASS
+___CACHE=$(echo "${___BIN}_CACHE") # SSH_ASKPASS_CACHE
 
 # Save original mask
 UMASK_=$(umask)

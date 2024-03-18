@@ -34,10 +34,17 @@ Author  : **Hans Vervaart**
 Using the `--bg-log-dir /path/to/log/directory` option will let all sessions run from the background.
 
 ### simple usage example
+
 Run the content of the `script` on all servers in the file `hosts`
 ```sh
 ssh-batch ./hosts -- ./script
 ```
+
+Run a command on server1 and server2
+```sh
+ssh-batch server1 server2 - 'if [ $(hostname) == "server1" ];then echo "yes";else echo "no" ;fi'
+```
+
 ----
 
 ## ssh_askpass
@@ -82,14 +89,23 @@ $ ./ssh_askpass --update-passwords
 ```
 Then, when you need your password, you can have ssh-batch ask you for your vault password, or export the vault password into your environment (a bit obfuscated, for increased security), and ssh-batch will use that and not ask you for any password.
 ```sh
-$ source ./ssh_askpass --exports
+$ source ./ssh_askpass --exports --no-trap
 
  export SSH_ASKPASS_CACHE=H4sIAGug0l4AA1M2NDU2NeSySk23teUCAKiISCkNAAAA-
- export SSH_ASKPASS=/bin/bash
+ export SSH_ASKPASS=/home/user/bin/ssh_askpass
  export DISPLAY=:0
  export SETSID=/usr/bin/setsid
 ```
-Note: we __sourced__ `ssh_askpass`, we did not run it.But note that it also outputs the variables as text, so you can also run it and incorporate the output into the beginning of your dynamic scripts
+Note: we __sourced__ `ssh_askpass`, we did not run it. But note that it also outputs the variables as text, so you can also run it and incorporate the output into the beginning of your dynamic scripts.
+
+Tip: You can create different vaults, by symlinking to the binary. 
+```sh
+$ ln -s ssh_askpass banana_shake
+$ ./banana_shake --vault-create
+```
+Would create `~/.banana/shake.vault`
+
+Note: If you omit `--no-trap`, then Control-C will close your terminal.
 
 ### Storing multiple passwords in your vault
 ```sh
@@ -121,8 +137,14 @@ Testing can be done by running:
 #  ssh_askpass hans@pc
 ```
 
+Note: as the binary, you can also use `$SSH_ASKPASS` or `${!___BIN}` as it is the full filename. To see all exported variables, use:
+```sh
+set |grep -i askpass
+```
 
-Note: When managing the passwords in the vault:
+### Updating passwords in your vault
+
+When managing the passwords in the vault:
 ```sh
 ssh_askpass --update-passwords
 ```
@@ -237,3 +259,13 @@ $ . ./openvault
 [ssh_askpass] Open vault secret:**********
 ```
 note that you can use ". openvault" if it's in the path, but somehow that does not look easier to explain.
+
+The added benefit is that you don't need to type out `source ssh_askpass --exports --no-trap`
+
+Note: as you can symlink `ssh_askpass`, you can also symlink these commands:
+
+```sh
+$ ln -s ./openvault ./openvault-banana_shake
+```
+
+Note: Careful when closing a vault while having others open, as it unsets a few common variables (`DISPLAY`, `SETSID`), which might hinder ssh.

@@ -1,22 +1,30 @@
 (return 0 2>/dev/null) && sourced=1 || sourced=0
 
+VAULTNAME=$(basename "${BASH_SOURCE[0]}")
+
+if [[ $VAULTNAME =~ "-" ]];then
+    VAULTNAME=${VAULTNAME#*-}
+else
+    VAULTNAME="ssh_askpass"
+fi
+
 if [ $sourced = 1 ];then
     CD=""
-    if [ -z "$(which ssh_askpass)" ];then
-      if [ -x "ssh_askpass" ];then
+    if [ -z "$(which $VAULTNAME)" ];then
+      if [ -x "$VAULTNAME" ];then
         CD="."
       else
-        if [ -x ./bin/ssh_askpass ];then
+        if [ -x ./bin/$VAULTNAME ];then
             CD="./bin"
         fi
       fi
     else
-      CD=$(dirname "$(which ssh_askpass)")
+      CD=$(dirname "$(which $VAULTNAME)")
     fi
-    if [ -x ${CD}/ssh_askpass ];then
-      $(${CD}/ssh_askpass --exports $@)
+    if [ -x ${CD}/$VAULTNAME ];then
+      $(${CD}/$VAULTNAME --exports $@)
     else
-      echo "Unable to find ssh_askpass (is it executable?)"
+      echo "Unable to find $VAULTNAME (is it executable?)"
     fi
 else
     echo "This script only runs sourced, i.e.:"
