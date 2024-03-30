@@ -18,6 +18,8 @@ if [ $sourced = 1 ];then
             CD="./bin/"
         fi
       fi
+    else
+      CD="$(dirname $(which $VAULTNAME))/"
     fi
     if [ -x  ${CD}$VAULTNAME ];then
       . ${CD}$VAULTNAME --flush-cache --no-trap $@
