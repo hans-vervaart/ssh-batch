@@ -98,7 +98,7 @@ set +x
 #
 ###############################################################################
 
-# find out if this file is executed or sourced # if [ x"${0:0:1}" == x"-" ]
+# find out if this file is executed or sourced
 (return 0 2>/dev/null) && sourced=1 || sourced=0
 
 # If sourced, then $0 does not exist. ___ bypasses _option_processor
