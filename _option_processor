@@ -50,6 +50,18 @@
 # Only options which are in use in the script will show up in the help,
 # options which are only #<marker># defined, will be ignored.
 #
+
+# find out if this file is executed or __sourced # if $0 is -bash or /bin/bash
+(return 0 2>/dev/null) && __sourced=1 || __sourced=0
+
+if [ $__sourced = 1 ];then
+    __caller="${BASH_SOURCE[1]}"
+else
+    __caller="$0"
+fi
+
+__should_exit=0
+
 while echo $1 | grep '^[-][-][a-z0-9-][a-z0-9-]*$'  > /dev/null 2>&1 || \
       echo $1 | grep '^[-][a-zA-Z0-9][a-zA-Z0-9]*$' > /dev/null 2>&1
 do
@@ -69,7 +81,7 @@ do
          unset ${__Opt}_ARG
       fi
       if [ $# -gt 0 ] && \
-         cat $0 | tr '$' '\n' | sed 's/$/#/' | \
+         cat $__caller | tr '$' '\n' | sed 's/$/#/' | \
          egrep "^[{]{0,1}${__Opt}_ARG[^A-Za-z_]" > /dev/null 2>&1
       then
          eval ${__Opt}_ARG[$\{#${__Opt}_ARG[@]\}]=\"$1\"
@@ -92,7 +104,7 @@ then
       More=cat
    fi
    (
-      if grep -v '^_help_show_args' $0 | tr '$' '\n' | \
+      if grep -v '^_help_show_args' $__caller | tr '$' '\n' | \
          egrep '^[{]{0,1}_[a-zA-Z0-9]|^[{]{0,1}__[a-z0-9]' > /dev/null 2>&1
       then
          _help_show_options="[options] "
@@ -100,17 +112,17 @@ then
          unset _help_show_options
       fi
       echo
-      echo "   Usage: `basename $0` ${_help_show_options}${_help_show_args}"
+      echo "   Usage: `basename $__caller` ${_help_show_options}${_help_show_args}"
       echo
-      if [ "$_h" != "yes" ] && grep '^#Usage:#' $0 > /dev/null 2>&1
+      if [ "$_h" != "yes" ] && grep '^#Usage:#' $__caller > /dev/null 2>&1
       then
-         grep '^#Usage:#' $0 | expand | sed 's|#Usage:# *||' | \
+         grep '^#Usage:#' $__caller | expand | sed 's|#Usage:# *||' | \
          sed 's|^|     |' | tr '#' ' '
          echo
       fi
       if [ "$_help_show_options" != "" ]
       then
-         _ArgFilter=`( grep -v '^_help_show_args' $0 | tr '$' '\n' | \
+         _ArgFilter=`( grep -v '^_help_show_args' $__caller | tr '$' '\n' | \
                        egrep '^[{]{0,1}_[a-zA-Z0-9]|^[{]{0,1}__[a-z0-9]' | \
                        sed -e 's/^{//' -e 's/_ARG[^A-Za-z_].*/_ARG/' | \
                        grep '_ARG$' | sed 's/_ARG$//' | sort | uniq | \
@@ -118,7 +130,7 @@ then
                      sed -e 's/|$//' -e 's/^/^/' -e 's/$/\$/' -e 's/|/\$|^/g'`
          echo "   Options:"
          echo
-         grep -v '^_help_show_args' $0 | tr '$' '\n' | \
+         grep -v '^_help_show_args' $__caller | tr '$' '\n' | \
          egrep -v '^[{]{0,1}___' | sed -e 's/^{//' -e 's/$/:/' | \
          egrep '^__[a-z0-9][a-z0-9_]*|^_[a-zA-Z0-9][^a-zA-Z0-9]' | \
          sed -e 's/^\(_[a-zA-Z0-9_]*\).*/\1/g' | \
@@ -128,10 +140,10 @@ then
          do
             echo "      $OptHelp"
             Option="$(echo $OptHelp | awk '{print $1}')"
-            if [ "$_h" != "yes" ] && grep "^#${Option}#" $0 > /dev/null 2>&1
+            if [ "$_h" != "yes" ] && grep "^#${Option}#" $__caller > /dev/null 2>&1
             then
                echo
-               grep "^#${Option}#" $0 | expand | sed "s|^#${Option}# *||" | \
+               grep "^#${Option}#" $__caller | expand | sed "s|^#${Option}# *||" | \
                sed 's|^|        |' | tr '#' ' '
                echo
             fi
@@ -139,6 +151,13 @@ then
          echo
       fi
    ) | $More
-   exit 0
+
+   if [ $__sourced = 1 ]; then
+      __should_exit=1
+      return 0
+   else
+      exit 0
+   fi
+
 fi
 
