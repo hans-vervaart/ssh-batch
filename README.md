@@ -13,6 +13,9 @@ The included ssh_askpass script provides the password for each session.
 
 Author  : **Hans Vervaart**
 
+To learn more about the basics, before diving into the man page, look at the presentation:
+([ssh-batch.pdf](https://github.com/FBnil/ssh-batch/blob/master/extra/ssh-batch.pdf))
+
 ## ssh-batch
 
 ### Usage
