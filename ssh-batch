@@ -139,6 +139,7 @@
 #Usage:# alternative users are skipped.
 #--all-hosts#            Enables the hostnames with a 'soft' comment (- or %).
 #--bg-disable#           Disable background runs, when --bg-log-dir is provided.
+#--bg-extra-ssh-option#  Add extra ssh option(s) when running in the background
 #--bg-log-dir#           Background logs directory and enable background runs.
 #--bg-session-throttle#  Maximum background runs.
 #--bg-timeout#           The wait for all background runs time-out.
@@ -519,6 +520,18 @@ do
    SshOpts[${#SshOpts[@]}]='-o'
    SshOpts[${#SshOpts[@]}]="$SshOpt"
 done
+
+# Add Opts if we go to the bg (background)
+if [ "$__bg_log_dir" = "yes" ] && \
+   [ "$__bg_disable" != "yes" ] && \
+   [ "$__bg_extra_ssh_option_ARG" != "" ]
+then
+   for SshOpt in ${__bg_extra_ssh_option_ARG[@]}
+   do
+      SshOpts[${#SshOpts[@]}]='-o'
+      SshOpts[${#SshOpts[@]}]="$SshOpt"
+   done
+fi
 
 # Add passthrough ssh options
 while [ $# -ne 0 ] && ! echo "$1" | egrep -q '^[-]{1,3}$'
