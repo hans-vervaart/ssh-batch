@@ -217,7 +217,7 @@ EnvVar()
       EnvRegExpr="$(echo "${__env_var_ARG[@]}" | tr ',[:space:]' '\n\n' | \
                     grep -v '^[[:space:]]*$ '| sed -e 's/$/=/' -e 's/^/^/' | \
                     tr '\n' '|' | sed 's/|$//')"
-      if ! set | egrep "$EnvRegExpr" | base64 2> /dev/null | grep '.'
+      if ! set | grep -E "$EnvRegExpr" | base64 2> /dev/null | grep '.'
       then
          # Always send something
          echo
@@ -349,7 +349,7 @@ FilterHostNames()
                 -e 's/^[[:space:]]*//' \
                 -e 's/^\([^[:space:]]*\).*/\1/' \
                 -e 's/#.*//' $(basename $File) 2> /dev/null | \
-            egrep -v "$FilterHostEgrep" | \
+            grep -E -v "$FilterHostEgrep" | \
             while read NewHostName
             do
                if [ "${NewHostName:0:1}" = "[" ]
@@ -396,7 +396,7 @@ FilterHostNames()
             done
          fi
       else
-         eval echo $(echo $1 | egrep -v "$FilterHostEgrep" | \
+         eval echo $(echo $1 | grep -E -v "$FilterHostEgrep" | \
                      sed -e "s/$FilterHostRegExpr\(.*\)/\1/" \
                          -e "s/[[]$AlNum:$AlNum[]]/{\1..\2}/g" \
                          -e "s/[[]$AlNum:$AlNum:$AlNum[]]/{\1..\2..\3}/g" | \
@@ -534,7 +534,7 @@ then
 fi
 
 # Add passthrough ssh options
-while [ $# -ne 0 ] && ! echo "$1" | egrep -q '^[-]{1,3}$'
+while [ $# -ne 0 ] && ! echo "$1" | grep -E -q '^[-]{1,3}$'
 do
    if [ "$__no_pass_through_opts" = "" ]
    then
@@ -672,14 +672,14 @@ then
 fi
 
 # Setup the backround wait levels for the number of processes
-MaxPs=$(echo $__bg_session_throttle_ARG | egrep '^[0-9]{1,}$')
+MaxPs=$(echo $__bg_session_throttle_ARG | grep -E '^[0-9]{1,}$')
 if [ "$MaxPs" = "" ] || [ $MaxPs -lt 2 ]
 then
    MaxPs=0
    MinPs=0
 else
    MinPs=$(($MaxPs-$(echo $___bg_session_throttle_hysteresis_ARG | \
-                     sed 's/^$/0/' | egrep '^[0-9]{1,}$')))
+                     sed 's/^$/0/' | grep -E '^[0-9]{1,}$')))
    if [ $MinPs -lt 1 ] || [ $MinPs -ge $MaxPs ]
    then
       MinPs=$(($MaxPs-($MaxPs/10)))

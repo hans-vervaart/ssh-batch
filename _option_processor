@@ -74,7 +74,7 @@ do
       fi
       if [ $# -gt 0 ] && \
          cat $0 $_help_source_in | tr '$' '\n' | sed 's/$/#/' | \
-         egrep "^[{]{0,1}${__Opt}_ARG[^A-Za-z_]" > /dev/null 2>&1
+         grep -E "^[{]{0,1}${__Opt}_ARG[^A-Za-z_]" > /dev/null 2>&1
       then
          eval ${__Opt}_ARG[$\{#${__Opt}_ARG[@]\}]=\"$1\"
          shift
@@ -97,7 +97,7 @@ then
    fi
    (
       if cat $0 $_help_source_in | tr '$' '\n' | grep -v '^_help_s[ho][ou]' | \
-         egrep '^[{]{0,1}_[a-zA-Z0-9]|^[{]{0,1}__[a-z0-9]' > /dev/null 2>&1
+         grep -E '^[{]{0,1}_[a-zA-Z0-9]|^[{]{0,1}__[a-z0-9]' > /dev/null 2>&1
       then
          _help_show_options="[options] "
       else
@@ -116,7 +116,7 @@ then
       then
          _ArgFilter=`( cat $0 $_help_source_in | tr '$' '\n' | \
                        grep -v '^_help_s[ho][ou]' | \
-                       egrep '^[{]{0,1}_[a-zA-Z0-9]|^[{]{0,1}__[a-z0-9]' | \
+                       grep -E '^[{]{0,1}_[a-zA-Z0-9]|^[{]{0,1}__[a-z0-9]' | \
                        sed -e 's/^{//' -e 's/_ARG[^A-Za-z_].*/_ARG/' | \
                        grep '_ARG$' | sed 's/_ARG$//' | sort | uniq | \
                        tr '\n' '|' ; echo ) | \
@@ -124,10 +124,10 @@ then
          echo "   Options:"
          echo
          cat $0 $_help_source_in | tr '$' '\n' | grep -v '^_help_s[ho][ou]' | \
-         egrep -v '^[{]{0,1}___' | sed -e 's/^{//' -e 's/$/:/' | \
-         egrep '^__[a-z0-9][a-z0-9_]*|^_[a-zA-Z0-9][^a-zA-Z0-9]' | \
+         grep -E -v '^[{]{0,1}___' | sed -e 's/^{//' -e 's/$/:/' | \
+         grep -E '^__[a-z0-9][a-z0-9_]*|^_[a-zA-Z0-9][^a-zA-Z0-9]' | \
          sed -e 's/^\(_[a-zA-Z0-9_]*\).*/\1/g' | \
-         egrep -v "$_ArgFilter" | sed -e 's/_/-/g' | sort | uniq | \
+         grep -E -v "$_ArgFilter" | sed -e 's/_/-/g' | sort | uniq | \
          sed -e 's/[-]ARG$/#<value>/' | tr '#' '\t' | expand -t 29 | \
          while read OptHelp
          do
