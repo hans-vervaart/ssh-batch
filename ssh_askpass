@@ -505,8 +505,8 @@ then
       then
          Pwd="$(echo "$SSH_ASKPASS_CACHE" | tr '-' '\n' | \
                 $OPEN_SSL base64 -d | gunzip -c | \
-                grep -v '^#' | grep "^|" | \
-                sed 's~.*|~~' | $OPEN_SSL base64 -d)"
+                grep -v '^#' | grep "^[:|]" | \
+                sed 's~^[:|]~~' | $OPEN_SSL base64 -d)"
          if [ ${#Pwd} -eq 0 ]
          then
             echo $* "<$(basename $0) FAILED (unknown account)>" >&2
