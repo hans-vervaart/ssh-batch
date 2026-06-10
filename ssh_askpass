@@ -157,7 +157,7 @@ do
          unset ${__Opt}_ARG
       fi
       if [ $# -gt 0 ] && \
-         cat $0 | tr '$' '\n' | sed 's/$/#/' | \
+         cat $0 | tr '$' '\n' | sed 's~$~#~' | \
          egrep "^[{]{0,1}${__Opt}_ARG[^A-Za-z_]" > /dev/null 2>&1
       then
          eval ${__Opt}_ARG[$\{#${__Opt}_ARG[@]\}]=\"$1\"
@@ -243,12 +243,17 @@ then
    done
    if [ "$__vault_list" = "yes" ] || [ "$___vault_list" = "yes" ]
    then
-      List=($(echo "$SSH_ASKPASS_CACHE" | tr '-' '\n' | \
+      List="$(echo "$SSH_ASKPASS_CACHE" | tr '-' '\n' | \
               $OPEN_SSL base64 -d  2> /dev/null | \
               gunzip -c 2>/dev/null | \
-              grep -v '^#'))
-      if [ ${#List[@]} -gt 0 ]
+              grep -v '^#')"
+      if [ ${#List} -gt 0 ]
       then
+         s='|' # seperator | or :
+         if ! grep -q "$s" <<< "${List}"
+         then
+            s=':'
+         fi
          AcTitle="ACCOUNT"
          PwTitle="PASS"
          if [ "$___vault_list" = "yes" ]
@@ -257,24 +262,24 @@ then
             PwMask=(cat)
          else
             PwTitle="${PwTitle}MASK"
-            PwMask=(sed 's/./*/g')
+            PwMask=(sed 's~.~*~g')
          fi
-         TabLen=$(echo "$AcTitle ${List[@]}" | tr ' ' '\n' | \
-                  sed -e 's/:.*//' -e 's/././g' | \
-                  sort | tail -1 | wc -c)
+         TabLen=$( ( echo "$AcTitle" ; echo "${List}" ) | \
+                   sed -e 's~'"$s"'.*~~' -e 's~.~.~g' | \
+                   sort | tail -1 | wc -c)
          (
             printf "$AcTitle\t $PwTitle\n" | \
-            tee /dev/stderr | sed 's/[A-Za-z]/=/g'
+            tee /dev/stderr | sed 's~[A-Za-z]~=~g'
          ) 2>&1  | sort -r | expand -t $TabLen
-         i=0
-         while [ ${#List[@]} -gt $i ]
+         echo "$List" | \
+         while read
          do
-            echo "${List[$i]}" | \
-               sed -e 's/^:/"":/' -e 's/:.*/\t/' | tr '\n' ' '
-            echo "${List[$i]}" | \
-               awk -F: '{print $2}' | $OPEN_SSL base64 -d | ${PwMask[@]}
+            echo "$REPLY" | \
+               sed -e 's~^'"$s"'~""'"$s"'~' -e 's~'"$s"'.*~\t~' | tr '\n' ' '
+            echo "$REPLY" | \
+               awk -F "$s" '{print $2}' | tr '-' '\n' | \
+               $OPEN_SSL base64 -d | ${PwMask[@]}
             echo
-            i=$(($i+1))
          done | expand -t $TabLen
       fi
    fi
@@ -300,7 +305,7 @@ then
             for Acc in $(echo "$SSH_ASKPASS_CACHE" | tr '-' '\n' | \
                          $OPEN_SSL base64 -d  2> /dev/null | \
                          gunzip -c 2>/dev/null | \
-                         grep -v '^#' | sed -e 's/^/"/' -e 's/:.*/"/')
+                         grep -v '^#' | sed -e 's~^~"~' -e 's~|.*~"~')
             do
                eval Accounts[${#Accounts[@]}]=$Acc
             done
@@ -319,16 +324,22 @@ then
          while [ $i -lt $NrAccounts ] || [ "$Value" = "" ]
          do
             printf "[%s$(basename $0)] Enter password:" \
-               "$(echo ${Accounts[$i]} | sed 's/.$/\0@/')" >&2
+               "$(echo ${Accounts[$i]} | sed 's~.$~\0@~')" >&2
             unset UnChanged
             read -r -s Value
             if [ "$Value" = "" ] && [ "$SSH_ASKPASS_CACHE" != "" ]
             then
-               Value="$(echo "$SSH_ASKPASS_CACHE" | tr '-' '\n' | \
+               s='|' # seperator | or :
+               if ! tr '-' '\n' <<< "$SSH_ASKPASS_CACHE" | $OPEN_SSL base64 -d \
+                    2> /dev/null | gunzip -c 2>/dev/null | grep -q "$s"
+               then
+                  s=':'
+               fi
+               Value="$(tr '-' '\n' <<< "$SSH_ASKPASS_CACHE"  | \
                         $OPEN_SSL base64 -d  2> /dev/null | \
                         gunzip -c 2>/dev/null | \
-                        grep -v '^#' | grep "^${Accounts[$i]}:" | \
-                        sed 's/.*://' | tr '-' '\n' | \
+                        grep -v '^#' | grep "^${Accounts[$i]}${s}" | \
+                        sed 's~.*'"$s"'~~' | tr '-' '\n' | \
                         $OPEN_SSL base64 -d 2> /dev/null)"
                if [ "$Value" != "" ]
                then
@@ -337,9 +348,10 @@ then
             fi
             if [ "$Value" != "" ]
             then
-               Values[$i]="$(printf "%s" "$Value" | $OPEN_SSL base64)"
+               Values[$i]="$(printf "%s" "$Value" | $OPEN_SSL base64 | \
+                             tr '\n' '-')"
                i=$(($i+1))
-               echo "$Value" | sed -e 's/./*/g' -e "s/\$/$UnChanged/" >&2
+               echo "$Value" | sed -e 's~.~*~g' -e "s~\$~$UnChanged~" >&2
             else
                echo >&2
             fi
@@ -350,7 +362,7 @@ then
                echo "#${RANDOM}"
                while [ $i -lt $NrAccounts ]
                do
-                  echo "${Accounts[$i]}:${Values[$i]}"
+                  echo "${Accounts[$i]}|${Values[$i]}"
                   i=$(($i+1))
                done
              ) | gzip -c | $OPEN_SSL base64 | tr '\n' '-')"
@@ -440,7 +452,7 @@ then
    if [ "$__exports" = "yes" ]
    then
       echo
-      EchoExports | sed 's/^/ /'
+      EchoExports | sed 's~^~ ~'
       echo
    fi
 
@@ -450,10 +462,15 @@ then
       gunzip -c | grep -v '^#' | \
       while read Line
       do
-         Arr=$(echo $Line | sed 's/:.*//' | grep -v '@' | grep '=' | \
-               sed 's/.*=//')
-         Acc=$(echo $Line | sed -e 's/:.*//' -e 's/=.*//')
-         Pwc=$(echo $Line | sed 's/.*://')
+         s='|' # seperator | or :
+         if ! grep -q "$s" <<< "${Line}"
+         then
+            s=':'
+         fi
+         Arr=$(echo $Line | sed 's~'"$s"'.*~~' | grep -v '@' | grep '=' | \
+               sed 's~.*=~~')
+         Acc=$(echo $Line | sed -e 's~'"$s"'.*~~' -e 's~=.*~~')
+         Pwc=$(echo $Line | sed 's~.*'"$s"'~~')
          if [ "$Arr" != "" ] && [ $(eval echo \${#$Arr[@]}) -gt 0 ]
          then
             i=0
@@ -462,7 +479,7 @@ then
                Reg="^${Acc}@$(eval echo \${$Arr[$i]})"
                if echo "$1" | grep "$Reg" > /dev/null 2>&1
                then
-                  Pwd=$(echo "$Pwc" | $OPEN_SSL base64 -d)
+                  Pwd=$(echo "$Pwc" | tr '-' '\n' | $OPEN_SSL base64 -d)
                   echo $* "<$(basename $0)> ($Arr:$Reg)" >&2
                   echo "$Pwd"
                   exit 1
@@ -472,13 +489,13 @@ then
          elif echo "$Acc" | grep '@' > /dev/null 2>&1 && \
               echo "$1" | grep "^$Acc" > /dev/null 2>&1
          then
-            Pwd=$(echo "$Pwc" | $OPEN_SSL base64 -d)
+            Pwd=$(echo "$Pwc" | tr '-' '\n' | $OPEN_SSL base64 -d)
             echo $* "<$(basename $0)> (^$Acc)" >&2
             echo "$Pwd"
             exit 2
          elif echo "$1@" | grep "^$Acc@" > /dev/null 2>&1
          then
-            Pwd=$(echo "$Pwc" | $OPEN_SSL base64 -d)
+            Pwd=$(echo "$Pwc" | tr '-' '\n' | $OPEN_SSL base64 -d)
             echo $* "<$(basename $0)> ($Acc)" >&2
             echo "$Pwd"
             exit 3
@@ -488,8 +505,8 @@ then
       then
          Pwd="$(echo "$SSH_ASKPASS_CACHE" | tr '-' '\n' | \
                 $OPEN_SSL base64 -d | gunzip -c | \
-                grep -v '^#' | grep "^:" | \
-                sed 's/.*://' | $OPEN_SSL base64 -d)"
+                grep -v '^#' | grep "^|" | \
+                sed 's~.*|~~' | $OPEN_SSL base64 -d)"
          if [ ${#Pwd} -eq 0 ]
          then
             echo $* "<$(basename $0) FAILED (unknown account)>" >&2
